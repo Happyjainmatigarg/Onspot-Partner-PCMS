@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --primary: #667eea;
+    --primary-dark: #5a67d8;
+    --accent: #764ba2;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+@layer components {
+    .btn-primary {
+        @apply bg-gradient-to-r from-primary-500 to-accent-500 text-white font-semibold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200;
+    }
+
+    .btn-secondary {
+        @apply bg-white text-primary-600 font-semibold py-3 px-6 rounded-lg border-2 border-primary-500 hover:bg-primary-50 transition-all duration-200;
+    }
+
+    .input-field {
+        @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all duration-200;
+    }
+
+    .card {
+        @apply bg-white rounded-xl shadow-lg p-6;
+    }
+
+    .label {
+        @apply block text-sm font-medium text-gray-700 mb-1;
+    }
+}
+
+.gradient-text {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}

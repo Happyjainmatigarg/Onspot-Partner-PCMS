@@ -1,0 +1,102 @@
+const mongoose = require('mongoose');
+
+const addressSchema = new mongoose.Schema({
+    street: { type: String, required: true, minlength: 10 },
+    city: { type: String, required: true, minlength: 3 },
+    state: { type: String, required: true },
+    pinCode: { type: String, required: true, match: /^\d{6}$/ }
+}, { _id: false });
+
+const contactPersonSchema = new mongoose.Schema({
+    name: { type: String, required: true, minlength: 3 },
+    mobile: { type: String, required: true, match: /^[6-9]\d{9}$/ },
+    email: { type: String, required: true },
+    address: addressSchema
+}, { _id: false });
+
+const partnerSchema = new mongoose.Schema({
+    partnerId: {
+        type: String,
+        required: true,
+        unique: true,
+        immutable: true,
+        match: /^ONSPOT-\d{2}-\d{2}-\d{4}-[PGS]-[A-Z0-9]{5}$/
+    },
+    partnerType: {
+        type: String,
+        required: true,
+        enum: ['PLATINUM', 'GOLD', 'SILVER']
+    },
+    applicantName: {
+        type: String,
+        required: true,
+        minlength: 3,
+        match: /^[a-zA-Z\s]+$/
+    },
+    email: {
+        type: String,
+        required: true,
+        unique: true,
+        lowercase: true
+    },
+    mobile: {
+        type: String,
+        required: true,
+        unique: true,
+        match: /^[6-9]\d{9}$/
+    },
+    mobileVerified: {
+        type: Boolean,
+        default: false
+    },
+    gstNumber: {
+        type: String,
+        required: true,
+        match: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
+    },
+    panNumber: {
+        type: String,
+        required: true,
+        match: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
+    },
+    billingAddress: {
+        type: addressSchema,
+        required: true
+    },
+    contactPerson: {
+        type: contactPersonSchema,
+        required: true
+    },
+    password: String,
+    passwordSet: {
+        type: Boolean,
+        default: false
+    },
+    status: {
+        type: String,
+        enum: ['PENDING', 'ACTIVE', 'SUSPENDED', 'INACTIVE'],
+        default: 'ACTIVE'
+    },
+    registrationDate: {
+        type: Date,
+        default: Date.now,
+        immutable: true
+    },
+    agreementPdfUrl: String,
+    createdBy: {
+        type: String,
+        default: 'SELF'
+    },
+    lastLoginAt: Date
+}, {
+    timestamps: true
+});
+
+// Indexes
+partnerSchema.index({ partnerId: 1 }, { unique: true });
+partnerSchema.index({ email: 1 }, { unique: true });
+partnerSchema.index({ mobile: 1 }, { unique: true });
+partnerSchema.index({ status: 1 });
+partnerSchema.index({ registrationDate: 1 });
+
+module.exports = mongoose.model('Partner', partnerSchema);

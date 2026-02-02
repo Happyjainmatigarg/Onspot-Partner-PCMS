@@ -1,0 +1,27 @@
+{
+    "name": "onspot-ecosystem",
+    "version": "1.0.0",
+    "description": "OnSpot™ Device Protection Ecosystem - Three-Application Platform",
+    "private": true,
+    "workspaces": [
+        "apps/*",
+        "packages/*"
+    ],
+    "scripts": {
+        "dev": "concurrently \"npm run dev:backend\" \"npm run dev:partner\" \"npm run dev:customer\" \"npm run dev:admin\"",
+        "dev:backend": "cd apps/backend && npm run dev",
+        "dev:partner": "cd apps/partner && npm run dev",
+        "dev:customer": "cd apps/customer && npm run dev",
+        "dev:admin": "cd apps/admin && npm run dev",
+        "install:all": "npm install && cd apps/backend && npm install && cd ../partner && npm install && cd ../customer && npm install && cd ../admin && npm install",
+        "build:all": "cd apps/partner && npm run build && cd ../customer && npm run build && cd ../admin && npm run build"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "author": "Ccommerce Ecosystem Pvt. Ltd.",
+    "license": "PROPRIETARY"
+}

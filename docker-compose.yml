@@ -1,0 +1,121 @@
+# Docker Compose for OnSpot Ecosystem
+# For local development and production deployment
+
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7
+    container_name: onspot-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-onspot2024}
+      MONGO_INITDB_DATABASE: onspot_ecosystem
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - onspot-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Backend API
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: onspot-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - MONGODB_URI=mongodb://admin:${MONGO_PASSWORD:-onspot2024}@mongodb:27017/onspot_ecosystem?authSource=admin
+      - JWT_SECRET=${JWT_SECRET:-onspot-jwt-secret-change-me}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://partner.onspot.one,https://customer.onspot.one,https://admin.onspot.one}
+      - EMAIL_HOST=${EMAIL_HOST:-smtp.gmail.com}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - EMAIL_FROM=${EMAIL_FROM:-partner@onspot.one}
+      - PARTNER_APP_URL=${PARTNER_APP_URL:-https://partner.onspot.one}
+      - CUSTOMER_APP_URL=${CUSTOMER_APP_URL:-https://customer.onspot.one}
+      - ADMIN_APP_URL=${ADMIN_APP_URL:-https://admin.onspot.one}
+    ports:
+      - "3000:3000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - onspot-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Partner App (Next.js)
+  partner:
+    build:
+      context: ./apps/partner
+      dockerfile: Dockerfile
+    container_name: onspot-partner
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${BACKEND_URL:-http://backend:3000}
+    ports:
+      - "3001:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - onspot-network
+
+  # Customer App (Next.js)
+  customer:
+    build:
+      context: ./apps/customer
+      dockerfile: Dockerfile
+    container_name: onspot-customer
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${BACKEND_URL:-http://backend:3000}
+    ports:
+      - "3002:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - onspot-network
+
+  # Admin App (Next.js)
+  admin:
+    build:
+      context: ./apps/admin
+      dockerfile: Dockerfile
+    container_name: onspot-admin
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${BACKEND_URL:-http://backend:3000}
+    ports:
+      - "3003:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - onspot-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  onspot-network:
+    driver: bridge
