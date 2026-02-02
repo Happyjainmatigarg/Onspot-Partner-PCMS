@@ -47,8 +47,9 @@ router.post('/register', async (req, res) => {
             partnerType
         } = req.body;
 
-        // Validation
-        if (!mobileVerified) {
+        // Validation - Skip OTP verification if Fonoster is not configured
+        const fonosterConfigured = process.env.FONOSTER_API_KEY && process.env.FONOSTER_API_SECRET;
+        if (!mobileVerified && fonosterConfigured) {
             return res.status(400).json({ error: 'Mobile number must be verified via OTP' });
         }
 
