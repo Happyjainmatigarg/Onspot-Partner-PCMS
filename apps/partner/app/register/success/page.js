@@ -72,6 +72,10 @@ function SuccessContent() {
                         Go to Login <ArrowRight className="w-5 h-5" />
                     </Link>
 
+                    <Link href="/" className="btn-secondary w-full flex items-center justify-center gap-2 mt-3">
+                        ← Back to Home
+                    </Link>
+
                     {/* Footer */}
                     <div className="mt-6 pt-6 border-t border-slate-100 flex items-center justify-center gap-2 text-slate-400">
                         <Shield className="w-5 h-5" />

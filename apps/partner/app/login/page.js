@@ -113,6 +113,9 @@ export default function LoginPage() {
                 <div className="w-full max-w-md">
                     <div className="lg:hidden mb-8 text-center">
                         <img src="/logo.png" alt="Ccommerce Ecosystem" className="h-16 w-auto mx-auto" />
+                        <Link href="/" className="inline-flex items-center gap-2 mt-4 text-primary-600 hover:text-primary-700 text-sm font-medium">
+                            ← Back to Home
+                        </Link>
                     </div>
 
                     <div className="bg-white rounded-2xl shadow-soft p-8">

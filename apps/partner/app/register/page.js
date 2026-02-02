@@ -225,6 +225,9 @@ export default function RegisterPage() {
                     <div className="lg:hidden text-center mb-6">
                         <img src="/logo.png" alt="Ccommerce Ecosystem" className="h-14 w-auto mx-auto mb-2" />
                         <p className="text-slate-500 text-sm">Partner Registration</p>
+                        <Link href="/" className="inline-flex items-center gap-2 mt-3 text-primary-600 hover:text-primary-700 text-sm font-medium">
+                            ← Back to Home
+                        </Link>
                     </div>
 
                     {/* Progress Steps */}
