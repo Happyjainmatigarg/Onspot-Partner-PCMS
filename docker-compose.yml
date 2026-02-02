@@ -1,7 +1,6 @@
 # Docker Compose for OnSpot Ecosystem
 # For production deployment (Dokploy) with MongoDB Atlas
-
-version: '3.8'
+# Note: Dokploy handles external routing via Traefik proxy
 
 services:
   # Backend API
@@ -9,12 +8,10 @@ services:
     build:
       context: ./apps/backend
       dockerfile: Dockerfile
-
     restart: unless-stopped
     environment:
       - NODE_ENV=production
       - PORT=3000
-      # MONGODB_URI should be set in Dokploy environment variables
       - MONGODB_URI=${MONGODB_URI}
       - JWT_SECRET=${JWT_SECRET:-onspot-jwt-secret-change-me}
       - CORS_ORIGINS=${CORS_ORIGINS:-https://partner.onspot.one,https://customer.onspot.one,https://admin.onspot.one}
@@ -30,8 +27,8 @@ services:
       - FONOSTER_API_SECRET=${FONOSTER_API_SECRET}
       - FONOSTER_PROJECT_ID=${FONOSTER_PROJECT_ID}
       - FONOSTER_FROM_NUMBER=${FONOSTER_FROM_NUMBER}
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     networks:
       - onspot-network
     healthcheck:
@@ -45,13 +42,12 @@ services:
     build:
       context: ./apps/partner
       dockerfile: Dockerfile
-
     restart: unless-stopped
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=${BACKEND_URL:-http://backend:3000}
-    ports:
-      - "3001:3000"
+    expose:
+      - "3000"
     depends_on:
       backend:
         condition: service_healthy
@@ -63,13 +59,12 @@ services:
     build:
       context: ./apps/customer
       dockerfile: Dockerfile
-
     restart: unless-stopped
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=${BACKEND_URL:-http://backend:3000}
-    ports:
-      - "3002:3000"
+    expose:
+      - "3000"
     depends_on:
       backend:
         condition: service_healthy
@@ -81,13 +76,12 @@ services:
     build:
       context: ./apps/admin
       dockerfile: Dockerfile
-
     restart: unless-stopped
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=${BACKEND_URL:-http://backend:3000}
-    ports:
-      - "3003:3000"
+    expose:
+      - "3000"
     depends_on:
       backend:
         condition: service_healthy
