@@ -146,16 +146,59 @@ export default function Home() {
             </section>
 
             {/* Footer */}
-            <footer className="bg-gray-900 text-white py-12">
+            <footer className="bg-slate-900 text-white py-12">
                 <div className="max-w-7xl mx-auto px-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Shield className="w-8 h-8 text-primary-400" />
-                            <span className="text-xl font-bold">OnSpot™</span>
+                    {/* Top Row */}
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 pb-8 border-b border-slate-700">
+                        <div className="flex items-center gap-3 mb-4 md:mb-0">
+                            <img src="/logo.png" alt="Ccommerce Ecosystem" className="h-12 w-auto bg-white p-1 rounded" />
+                            <div>
+                                <h3 className="text-lg font-bold">OnSpot™</h3>
+                                <p className="text-xs text-slate-400">Device Protection Services</p>
+                            </div>
                         </div>
-                        <p className="text-gray-400 text-sm">
-                            &copy; {new Date().getFullYear()} Ccommerce Ecosystem Pvt. Ltd.
+                        <p className="text-slate-400 text-sm">Ccommerce Ecosystem Pvt. Ltd.</p>
+                    </div>
+
+                    {/* Links Grid */}
+                    <div className="grid md:grid-cols-3 gap-8 mb-8">
+                        <div>
+                            <h4 className="font-semibold mb-4 text-gold-500">Service Plans</h4>
+                            <ul className="space-y-2 text-sm text-slate-400">
+                                <li>ESS - Extended Service Support</li>
+                                <li>EPS - Extended Protection</li>
+                                <li>CDC - Comprehensive Device Care</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mb-4 text-gold-500">Legal & Policies</h4>
+                            <ul className="space-y-2 text-sm">
+                                <li><Link href="/policies/privacy" className="text-slate-400 hover:text-white">Privacy Policy</Link></li>
+                                <li><Link href="/policies/terms" className="text-slate-400 hover:text-white">Terms of Service</Link></li>
+                                <li><Link href="/policies/refund" className="text-slate-400 hover:text-white">Refund Policy</Link></li>
+                                <li><Link href="/policies/disclaimer" className="text-slate-400 hover:text-white">Disclaimer</Link></li>
+                                <li><Link href="/policies/grievance" className="text-slate-400 hover:text-white">Grievance Redressal</Link></li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 className="font-semibold mb-4 text-gold-500">Contact</h4>
+                            <ul className="space-y-2 text-sm text-slate-400">
+                                <li>Email: support@onspot.one</li>
+                                <li>Phone: 1800-XXX-XXXX</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* Disclaimer */}
+                    <div className="bg-slate-800 rounded-lg p-4 mb-6">
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                            <strong className="text-slate-300">Disclaimer:</strong> OnSpot™ is a registered trademark of Ccommerce Ecosystem Pvt. Ltd. OnSpot™ service plans are not insurance products and do not replace manufacturer warranties or insurance policies. Coverage is strictly limited to service and repair support as defined in the applicable Service Level Agreements (SLAs).
                         </p>
+                    </div>
+
+                    {/* Copyright */}
+                    <div className="text-center text-slate-500 text-xs">
+                        © {new Date().getFullYear()} Ccommerce Ecosystem Pvt. Ltd. All rights reserved.
                     </div>
                 </div>
             </footer>

@@ -1,6 +1,6 @@
 export const metadata = {
-    title: 'Disclaimer - OnSpot Partner Portal',
-    description: 'Disclaimer for OnSpot Partner Portal by Ccommerce Ecosystem Pvt. Ltd.',
+    title: 'Disclaimer - OnSpot Portal',
+    description: 'Disclaimer for OnSpot Portal by Ccommerce Ecosystem Pvt. Ltd.',
 };
 
 export default function Disclaimer() {
@@ -8,6 +8,16 @@ export default function Disclaimer() {
         <article className="prose prose-slate max-w-none">
             <h1 className="font-display text-3xl font-bold text-primary-600 mb-2">Disclaimer</h1>
             <p className="text-sm text-slate-500 mb-8">Last Updated: February 2026</p>
+
+            {/* Primary Trademark Notice */}
+            <section className="mb-8">
+                <div className="bg-primary-50 border-l-4 border-primary-600 p-6 my-4 rounded-r-lg">
+                    <p className="font-semibold text-primary-800 mb-2">Trademark & Service Notice</p>
+                    <p className="text-primary-700">
+                        OnSpot™ is a registered trademark of Ccommerce Ecosystem Pvt. Ltd. OnSpot™ service plans are not insurance products and do not replace manufacturer warranties or insurance policies. Coverage is strictly limited to service and repair support as defined in the applicable Service Level Agreements (SLAs).
+                    </p>
+                </div>
+            </section>
 
             <section className="mb-8">
                 <h2 className="text-xl font-semibold text-primary-600 mt-8 mb-4">1. Not an Insurance Product</h2>
