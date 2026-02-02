@@ -12,6 +12,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# Set API URL for build time (internal Docker network)
+ENV NEXT_PUBLIC_API_URL=http://backend:3000
+
 # Build the Next.js app
 RUN npm run build
 
