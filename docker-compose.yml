@@ -1,6 +1,5 @@
 # Docker Compose for OnSpot Ecosystem
 # For production deployment (Dokploy) with MongoDB Atlas
-# Note: Dokploy handles external routing via Traefik proxy
 
 services:
   # Backend API
@@ -27,8 +26,8 @@ services:
       - FONOSTER_API_SECRET=${FONOSTER_API_SECRET}
       - FONOSTER_PROJECT_ID=${FONOSTER_PROJECT_ID}
       - FONOSTER_FROM_NUMBER=${FONOSTER_FROM_NUMBER}
-    expose:
-      - "3000"
+    ports:
+      - "4001:3000"
     networks:
       - onspot-network
     healthcheck:
@@ -46,8 +45,8 @@ services:
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=${BACKEND_URL:-http://backend:3000}
-    expose:
-      - "3000"
+    ports:
+      - "4002:3000"
     depends_on:
       backend:
         condition: service_healthy
@@ -63,8 +62,8 @@ services:
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=${BACKEND_URL:-http://backend:3000}
-    expose:
-      - "3000"
+    ports:
+      - "4003:3000"
     depends_on:
       backend:
         condition: service_healthy
@@ -80,8 +79,8 @@ services:
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=${BACKEND_URL:-http://backend:3000}
-    expose:
-      - "3000"
+    ports:
+      - "4004:3000"
     depends_on:
       backend:
         condition: service_healthy
