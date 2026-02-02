@@ -8,6 +8,7 @@ export const metadata = {
     creator: 'Ccommerce Ecosystem Pvt. Ltd.',
     publisher: 'Ccommerce Ecosystem Pvt. Ltd.',
     robots: 'index, follow',
+    metadataBase: new URL('https://partner.onspot.one'),
     openGraph: {
         title: 'OnSpot™ Partner Portal | Ccommerce Ecosystem',
         description: 'Become an authorized OnSpot partner. Sell device protection plans and earn commissions.',
@@ -21,7 +22,12 @@ export const metadata = {
         title: 'OnSpot™ Partner Portal',
         description: 'Join the OnSpot Partner Network for device protection services.',
     },
-    viewport: 'width=device-width, initial-scale=1',
+};
+
+// Viewport must be exported separately in Next.js 14+
+export const viewport = {
+    width: 'device-width',
+    initialScale: 1,
     themeColor: '#0B2545',
 };
 
