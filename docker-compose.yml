@@ -9,7 +9,7 @@ services:
     build:
       context: ./apps/backend
       dockerfile: Dockerfile
-    container_name: onspot-backend
+
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -45,7 +45,7 @@ services:
     build:
       context: ./apps/partner
       dockerfile: Dockerfile
-    container_name: onspot-partner
+
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -63,7 +63,7 @@ services:
     build:
       context: ./apps/customer
       dockerfile: Dockerfile
-    container_name: onspot-customer
+
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -81,7 +81,7 @@ services:
     build:
       context: ./apps/admin
       dockerfile: Dockerfile
-    container_name: onspot-admin
+
     restart: unless-stopped
     environment:
       - NODE_ENV=production
