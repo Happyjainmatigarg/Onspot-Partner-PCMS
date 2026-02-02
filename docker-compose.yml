@@ -1,7 +1,28 @@
 # Docker Compose for OnSpot Ecosystem
-# For production deployment (Dokploy) with MongoDB Atlas
+# For production deployment with MongoDB container
 
 services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-OnSpotDB2026!}
+      - MONGO_INITDB_DATABASE=onspot
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - onspot-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
   # Backend API
   backend:
     build:
@@ -11,7 +32,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - MONGODB_URI=${MONGODB_URI}
+      - MONGODB_URI=mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-OnSpotDB2026!}@mongodb:27017/onspot?authSource=admin
       - JWT_SECRET=${JWT_SECRET:-onspot-jwt-secret-change-me}
       - CORS_ORIGINS=${CORS_ORIGINS:-https://partner.onspot.one,https://customer.onspot.one,https://admin.onspot.one}
       - EMAIL_HOST=${EMAIL_HOST:-smtp.gmail.com}
@@ -28,6 +49,9 @@ services:
       - FONOSTER_FROM_NUMBER=${FONOSTER_FROM_NUMBER}
     ports:
       - "4001:3000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
     networks:
       - onspot-network
     healthcheck:
@@ -84,6 +108,10 @@ services:
       - backend
     networks:
       - onspot-network
+
+volumes:
+  mongodb_data:
+    driver: local
 
 networks:
   onspot-network:
