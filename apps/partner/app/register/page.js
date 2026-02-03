@@ -83,16 +83,15 @@ export default function RegisterPage() {
         });
     };
 
-    // Mock OTP for testing - Replace with Fonoster API in production
+    // Send OTP via SMS
     const sendOtp = async () => {
         setError('');
         setLoading(true);
         try {
-            // For testing: simulate API call
             const res = await fetch('/api/otp/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mobile: formData.mobile, purpose: 'PARTNER_REGISTRATION' })
+                body: JSON.stringify({ mobile: formData.mobile, method: 'sms' })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
@@ -279,7 +278,7 @@ export default function RegisterPage() {
                             <div className="space-y-5">
                                 <div className="text-center mb-4">
                                     <h2 className="font-display text-xl font-bold text-primary-600">Mobile Verification</h2>
-                                    <p className="text-sm text-slate-500">Verify your mobile via voice call OTP</p>
+                                    <p className="text-sm text-slate-500">Verify your mobile via SMS OTP</p>
                                 </div>
 
                                 <div>
@@ -301,12 +300,12 @@ export default function RegisterPage() {
                                         disabled={loading || formData.mobile.length !== 10}
                                         className="btn-primary w-full disabled:opacity-50"
                                     >
-                                        {loading ? 'Calling...' : '📞 Get OTP via Voice Call'}
+                                        {loading ? 'Sending...' : '📱 Get OTP via SMS'}
                                     </button>
                                 ) : !otpVerified ? (
                                     <>
-                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
-                                            📞 You will receive a voice call with your OTP. Please answer the call.
+                                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm text-emerald-700">
+                                            📱 OTP sent to your mobile number via SMS. Please check your messages.
                                         </div>
                                         <div>
                                             <label className="label">Enter OTP *</label>
