@@ -120,7 +120,38 @@ router.post('/register', async (req, res) => {
         });
     } catch (error) {
         console.error('Partner registration error:', error);
-        res.status(500).json({ error: 'Registration failed. Please try again.' });
+
+        // Return detailed error information for debugging
+        let errorMessage = 'Registration failed. Please try again.';
+        let errorDetails = null;
+
+        // Mongoose validation errors
+        if (error.name === 'ValidationError') {
+            const validationErrors = Object.keys(error.errors).map(field => ({
+                field,
+                message: error.errors[field].message
+            }));
+            errorMessage = 'Validation failed';
+            errorDetails = validationErrors;
+        }
+        // Duplicate key errors
+        else if (error.code === 11000) {
+            const field = Object.keys(error.keyPattern)[0];
+            errorMessage = `${field} already exists`;
+            errorDetails = { field, value: error.keyValue[field] };
+        }
+        // Other errors - include message in non-production
+        else if (process.env.NODE_ENV !== 'production') {
+            errorMessage = error.message;
+            errorDetails = { stack: error.stack?.split('\n').slice(0, 3) };
+        }
+
+        res.status(500).json({
+            error: errorMessage,
+            details: errorDetails,
+            // Include full error in development
+            ...(process.env.NODE_ENV !== 'production' && { fullError: error.message })
+        });
     }
 });
 
