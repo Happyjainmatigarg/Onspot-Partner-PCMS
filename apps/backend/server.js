@@ -75,6 +75,7 @@ app.use('/api/otp', otpRoutes);
 app.use('/api/partners', partnerRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/push', require('./routes/push'));
 
 // Root route
 app.get('/api', (req, res) => {

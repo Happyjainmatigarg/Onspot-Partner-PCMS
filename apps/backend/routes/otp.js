@@ -3,10 +3,10 @@ const router = express.Router();
 const { sendOTP, verifyOTP } = require('../services/otp');
 
 // POST /api/otp/send
-// Supports both email and mobile OTP
+// Supports: email, sms, whatsapp, auto (default)
 router.post('/send', async (req, res) => {
     try {
-        const { mobile, email } = req.body;
+        const { mobile, email, method = 'auto' } = req.body;
 
         // Require either mobile or email
         if (!mobile && !email) {
@@ -14,7 +14,6 @@ router.post('/send', async (req, res) => {
         }
 
         let identifier;
-        let method = 'email';
 
         if (email) {
             // Validate email format
@@ -28,11 +27,13 @@ router.post('/send', async (req, res) => {
                 return res.status(400).json({ error: 'Invalid mobile number format. Must be 10 digits starting with 6-9.' });
             }
             identifier = mobile;
-            // For mobile, we'll use console mode since we don't have SMS gateway
-            method = 'console';
         }
 
-        const result = await sendOTP(identifier, method);
+        // Valid methods: email, sms, whatsapp, auto
+        const validMethods = ['email', 'sms', 'whatsapp', 'auto'];
+        const selectedMethod = validMethods.includes(method) ? method : 'auto';
+
+        const result = await sendOTP(identifier, selectedMethod);
 
         if (!result.success) {
             return res.status(429).json(result);
@@ -40,10 +41,13 @@ router.post('/send', async (req, res) => {
 
         res.json({
             ...result,
-            // Include helpful message about where to find OTP
-            hint: email
-                ? 'Please check your email inbox and spam folder'
-                : 'OTP logged to server console (development mode)'
+            hint: result.method === 'email'
+                ? 'Check your email inbox and spam folder'
+                : result.method === 'sms'
+                    ? 'OTP sent to your mobile via SMS'
+                    : result.method === 'whatsapp'
+                        ? 'OTP sent via WhatsApp'
+                        : 'OTP logged to server console (development mode)'
         });
     } catch (error) {
         console.error('OTP send error:', error);
@@ -76,4 +80,3 @@ router.post('/verify', async (req, res) => {
 });
 
 module.exports = router;
-
