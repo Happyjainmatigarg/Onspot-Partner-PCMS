@@ -1,20 +1,28 @@
-// OTP Service with Fonoster Integration
-// Supports Voice Call OTP and SMS
+// OTP Service - Open Source Email-Based Authentication
+// Uses nodemailer for email delivery (no paid third-party services)
+
+const nodemailer = require('nodemailer');
 
 // In-memory OTP store (use Redis in production)
 const otpStore = new Map();
 
 const OTP_EXPIRY_MINUTES = parseInt(process.env.OTP_EXPIRY_MINUTES || '10');
 const MAX_OTP_ATTEMPTS = 3;
-const MAX_SEND_ATTEMPTS = 3;
+const MAX_SEND_ATTEMPTS = 5;
 
-// Fonoster configuration
-const FONOSTER_CONFIG = {
-    apiKey: process.env.FONOSTER_API_KEY,
-    apiSecret: process.env.FONOSTER_API_SECRET,
-    projectId: process.env.FONOSTER_PROJECT_ID,
-    fromNumber: process.env.FONOSTER_FROM_NUMBER
-};
+// Email transporter configuration
+const transporter = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.EMAIL_PORT || '587'),
+    secure: false,
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    },
+    tls: {
+        rejectUnauthorized: false
+    }
+});
 
 /**
  * Generate 6-digit OTP
@@ -24,98 +32,86 @@ function generateOTP() {
 }
 
 /**
- * Send OTP via Fonoster Voice Call
+ * Send OTP via Email
+ * @param {string} email - Recipient email address
+ * @param {string} otp - OTP code to send
  */
-async function sendVoiceOTP(mobile, otp) {
-    if (!FONOSTER_CONFIG.apiKey) {
-        console.log('[DEV] Fonoster not configured, using mock mode');
-        return { success: true, mode: 'mock' };
-    }
+async function sendEmailOTP(email, otp) {
+    const fromEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+    const fromName = process.env.EMAIL_FROM_NAME || 'OnSpot Partner Portal';
 
     try {
-        // Fonoster Voice API call
-        const response = await fetch('https://api.fonoster.io/v1/calls', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${FONOSTER_CONFIG.apiKey}`,
-                'X-Api-Secret': FONOSTER_CONFIG.apiSecret
-            },
-            body: JSON.stringify({
-                from: FONOSTER_CONFIG.fromNumber,
-                to: mobile.startsWith('+') ? mobile : `+91${mobile}`,
-                appRef: FONOSTER_CONFIG.projectId,
-                metadata: {
-                    otp: otp,
-                    message: `Your OnSpot verification code is ${otp.split('').join(' ')}. I repeat, ${otp.split('').join(' ')}.`
-                }
-            })
-        });
+        const mailOptions = {
+            from: `"${fromName}" <${fromEmail}>`,
+            to: email,
+            subject: 'Your OnSpot Verification Code',
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <h1 style="color: #10b981; margin: 0;">OnSpot</h1>
+                        <p style="color: #666; margin-top: 5px;">Partner Portal</p>
+                    </div>
+                    
+                    <div style="background: linear-gradient(135deg, #10b981, #059669); border-radius: 12px; padding: 30px; text-align: center; color: white;">
+                        <p style="margin: 0 0 15px 0; font-size: 16px;">Your verification code is:</p>
+                        <div style="background: white; color: #10b981; font-size: 32px; font-weight: bold; letter-spacing: 8px; padding: 20px; border-radius: 8px; font-family: monospace;">
+                            ${otp}
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 25px; padding: 20px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #10b981;">
+                        <p style="margin: 0; color: #374151; font-size: 14px;">
+                            <strong>⏱ Valid for ${OTP_EXPIRY_MINUTES} minutes</strong>
+                        </p>
+                        <p style="margin: 10px 0 0 0; color: #6b7280; font-size: 13px;">
+                            Do not share this code with anyone. OnSpot will never ask for your OTP.
+                        </p>
+                    </div>
+                    
+                    <div style="margin-top: 30px; text-align: center; color: #9ca3af; font-size: 12px;">
+                        <p>If you didn't request this code, please ignore this email.</p>
+                        <p style="margin-top: 10px;">© ${new Date().getFullYear()} OnSpot Partner Portal</p>
+                    </div>
+                </div>
+            `,
+            text: `Your OnSpot verification code is: ${otp}. Valid for ${OTP_EXPIRY_MINUTES} minutes. Do not share with anyone.`
+        };
 
-        if (!response.ok) {
-            const error = await response.text();
-            console.error('[Fonoster] Voice call failed:', error);
-            return { success: false, error };
-        }
-
-        const data = await response.json();
-        console.log('[Fonoster] Voice call initiated:', data.callId || data.ref);
-        return { success: true, callId: data.callId || data.ref };
+        const info = await transporter.sendMail(mailOptions);
+        console.log('[OTP] Email sent:', info.messageId);
+        return { success: true, messageId: info.messageId };
 
     } catch (error) {
-        console.error('[Fonoster] Error:', error.message);
+        console.error('[OTP] Email sending failed:', error.message);
         return { success: false, error: error.message };
     }
 }
 
 /**
- * Send OTP via Fonoster SMS
+ * Send OTP via console (for development/testing)
+ * @param {string} identifier - Mobile or email
+ * @param {string} otp - OTP code
  */
-async function sendSMSOTP(mobile, otp) {
-    if (!FONOSTER_CONFIG.apiKey) {
-        console.log('[DEV] Fonoster not configured, using mock mode');
-        return { success: true, mode: 'mock' };
-    }
-
-    try {
-        // Fonoster SMS API call
-        const response = await fetch('https://api.fonoster.io/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${FONOSTER_CONFIG.apiKey}`,
-                'X-Api-Secret': FONOSTER_CONFIG.apiSecret
-            },
-            body: JSON.stringify({
-                from: FONOSTER_CONFIG.fromNumber,
-                to: mobile.startsWith('+') ? mobile : `+91${mobile}`,
-                body: `Your OnSpot verification code is: ${otp}. Valid for ${OTP_EXPIRY_MINUTES} minutes. Do not share with anyone.`
-            })
-        });
-
-        if (!response.ok) {
-            const error = await response.text();
-            console.error('[Fonoster] SMS failed:', error);
-            return { success: false, error };
-        }
-
-        const data = await response.json();
-        console.log('[Fonoster] SMS sent:', data.messageId || data.ref);
-        return { success: true, messageId: data.messageId || data.ref };
-
-    } catch (error) {
-        console.error('[Fonoster] Error:', error.message);
-        return { success: false, error: error.message };
-    }
+function sendConsoleOTP(identifier, otp) {
+    console.log('');
+    console.log('╔════════════════════════════════════════╗');
+    console.log('║         OTP VERIFICATION CODE          ║');
+    console.log('╠════════════════════════════════════════╣');
+    console.log(`║  Recipient: ${identifier.padEnd(26)}║`);
+    console.log(`║  OTP Code:  ${otp.padEnd(26)}║`);
+    console.log(`║  Valid for: ${OTP_EXPIRY_MINUTES} minutes${' '.repeat(20 - String(OTP_EXPIRY_MINUTES).length)}║`);
+    console.log('╚════════════════════════════════════════╝');
+    console.log('');
+    return { success: true, mode: 'console' };
 }
 
 /**
- * Send OTP to mobile number
- * @param {string} mobile - Mobile number
- * @param {string} method - 'voice' or 'sms' (default: 'voice')
+ * Send OTP to recipient
+ * @param {string} identifier - Email address or mobile number
+ * @param {string} method - 'email' or 'console' (default: 'email')
  */
-async function sendOTP(mobile, method = 'voice') {
-    const key = `otp:${mobile}`;
+async function sendOTP(identifier, method = 'email') {
+    const key = `otp:${identifier}`;
     const existing = otpStore.get(key);
 
     // Rate limiting check
@@ -144,47 +140,60 @@ async function sendOTP(mobile, method = 'voice') {
         expiresAt: now + (OTP_EXPIRY_MINUTES * 60 * 1000)
     });
 
-    // Send via chosen method
-    let sendResult;
-    if (method === 'sms') {
-        sendResult = await sendSMSOTP(mobile, code);
-    } else {
-        sendResult = await sendVoiceOTP(mobile, code);
-    }
-
-    // Log for development
+    // Always log to console in development
     if (process.env.NODE_ENV !== 'production') {
-        console.log(`[DEV] OTP for ${mobile}: ${code}`);
+        sendConsoleOTP(identifier, code);
     }
 
-    // If Fonoster call/SMS failed, still allow mock mode for testing
-    if (!sendResult.success && sendResult.mode !== 'mock') {
-        console.warn('[OTP] Fonoster delivery failed, falling back to mock mode');
+    // Send based on method
+    let sendResult = { success: true };
+
+    // Check if identifier is an email
+    const isEmail = identifier.includes('@');
+
+    if (method === 'email' && isEmail && process.env.EMAIL_USER) {
+        sendResult = await sendEmailOTP(identifier, code);
+    } else if (method === 'email' && !isEmail) {
+        // For mobile numbers without SMS gateway, just use console mode
+        console.log('[OTP] Mobile OTP requested - using console mode (no SMS gateway configured)');
+        sendResult = { success: true, mode: 'console' };
+    }
+
+    // If email failed in production, return error
+    if (!sendResult.success && process.env.NODE_ENV === 'production') {
+        return {
+            success: false,
+            error: 'DELIVERY_FAILED',
+            message: 'Failed to send OTP. Please try again.'
+        };
     }
 
     return {
         success: true,
-        method: method,
-        message: method === 'sms'
-            ? 'OTP sent successfully via SMS'
-            : 'OTP sent successfully via voice call',
+        method: isEmail ? 'email' : 'console',
+        message: isEmail
+            ? 'OTP sent successfully to your email'
+            : 'OTP sent successfully',
         // DEV ONLY: Include OTP in response for testing
         ...(process.env.NODE_ENV !== 'production' && { devOTP: code })
     };
 }
 
 /**
- * Verify OTP code
+ * Verify OTP
+ * @param {string} identifier - Email or mobile that received the OTP
+ * @param {string} code - OTP code to verify
  */
-async function verifyOTP(mobile, code) {
-    const key = `otp:${mobile}`;
+function verifyOTP(identifier, code) {
+    const key = `otp:${identifier}`;
     const stored = otpStore.get(key);
 
     if (!stored) {
         return {
             success: false,
+            verified: false,
             error: 'OTP_NOT_FOUND',
-            message: 'No OTP found. Please request a new OTP.'
+            message: 'OTP not found or expired. Please request a new one.'
         };
     }
 
@@ -193,32 +202,32 @@ async function verifyOTP(mobile, code) {
         otpStore.delete(key);
         return {
             success: false,
+            verified: false,
             error: 'OTP_EXPIRED',
-            message: 'OTP has expired. Please request a new OTP.'
+            message: 'OTP has expired. Please request a new one.'
         };
     }
 
-    // Check attempts
+    // Check max attempts
     if (stored.attempts >= MAX_OTP_ATTEMPTS) {
         otpStore.delete(key);
         return {
             success: false,
+            verified: false,
             error: 'MAX_ATTEMPTS',
             message: 'Maximum verification attempts exceeded. Please request a new OTP.'
         };
     }
 
-    // Increment attempts
-    stored.attempts++;
-    otpStore.set(key, stored);
-
     // Verify code
     if (stored.code !== code) {
+        stored.attempts += 1;
         return {
             success: false,
+            verified: false,
             error: 'INVALID_OTP',
-            message: `Invalid OTP. ${MAX_OTP_ATTEMPTS - stored.attempts} attempts remaining.`,
-            attemptsRemaining: MAX_OTP_ATTEMPTS - stored.attempts
+            message: 'Invalid OTP. Please try again.',
+            remainingAttempts: MAX_OTP_ATTEMPTS - stored.attempts
         };
     }
 
@@ -232,10 +241,25 @@ async function verifyOTP(mobile, code) {
     };
 }
 
+/**
+ * Clean up expired OTPs (run periodically)
+ */
+function cleanupExpiredOTPs() {
+    const now = Date.now();
+    for (const [key, value] of otpStore.entries()) {
+        if (now > value.expiresAt) {
+            otpStore.delete(key);
+        }
+    }
+}
+
+// Run cleanup every 5 minutes
+setInterval(cleanupExpiredOTPs, 5 * 60 * 1000);
+
 module.exports = {
     sendOTP,
     verifyOTP,
     generateOTP,
-    sendVoiceOTP,
-    sendSMSOTP
+    sendEmailOTP,
+    sendConsoleOTP
 };
