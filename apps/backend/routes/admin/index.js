@@ -12,7 +12,8 @@ const { generateAdminId } = require('../../utils/idGenerator');
 const { generateToken, authenticate, authorize, requirePermission } = require('../../middleware/auth');
 const { createAuditLog, extractAuditInfo } = require('../../services/audit');
 const { calculateCommission } = require('../../services/commission');
-const { sendCustomerApprovalEmail } = require('../../services/email');
+const { sendCustomerApprovalEmail, sendPartnerWelcomeEmail } = require('../../services/email');
+const { generatePartnerAgreementPDF } = require('../../services/pdf');
 
 // POST /api/admin/login
 router.post('/login', async (req, res) => {
@@ -628,6 +629,163 @@ router.post('/users', authenticate, authorize('SUPER_ADMIN'), async (req, res) =
         res.status(201).json({ success: true, adminId });
     } catch (error) {
         res.status(500).json({ error: 'Failed to create admin' });
+    }
+});
+
+// ===== EMAIL RESEND ROUTES =====
+
+// POST /api/admin/partners/:id/resend-welcome
+// Resend welcome email with PDF agreement to partner
+router.post('/partners/:id/resend-welcome', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS'), async (req, res) => {
+    try {
+        const partner = await Partner.findOne({ partnerId: req.params.id });
+        if (!partner) {
+            return res.status(404).json({ error: 'Partner not found' });
+        }
+
+        // Generate fresh PDF agreement
+        let pdfBuffer = null;
+        try {
+            pdfBuffer = await generatePartnerAgreementPDF(partner);
+        } catch (pdfError) {
+            console.error('PDF generation failed:', pdfError);
+        }
+
+        // Send welcome email
+        const result = await sendPartnerWelcomeEmail(partner, pdfBuffer);
+
+        if (!result.success) {
+            return res.status(500).json({ error: 'Failed to send email', details: result.error });
+        }
+
+        // Audit log
+        await createAuditLog({
+            action: 'EMAIL_RESEND',
+            entity: 'PARTNER',
+            entityId: partner.partnerId,
+            performedBy: req.user.email,
+            performedByRole: req.user.role,
+            ...extractAuditInfo(req),
+            details: 'Welcome email with PDF agreement resent'
+        });
+
+        res.json({
+            success: true,
+            message: `Welcome email resent to ${partner.email}`,
+            emailSent: partner.email
+        });
+    } catch (error) {
+        console.error('Resend welcome email error:', error);
+        res.status(500).json({ error: 'Failed to resend welcome email' });
+    }
+});
+
+// POST /api/admin/partners/:id/resend-agreement
+// Resend only the PDF agreement (no welcome content)
+router.post('/partners/:id/resend-agreement', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS'), async (req, res) => {
+    try {
+        const partner = await Partner.findOne({ partnerId: req.params.id });
+        if (!partner) {
+            return res.status(404).json({ error: 'Partner not found' });
+        }
+
+        // Generate fresh PDF agreement
+        const pdfBuffer = await generatePartnerAgreementPDF(partner);
+
+        // Send agreement email (same as welcome, includes PDF)
+        const result = await sendPartnerWelcomeEmail(partner, pdfBuffer);
+
+        if (!result.success) {
+            return res.status(500).json({ error: 'Failed to send email', details: result.error });
+        }
+
+        // Audit log
+        await createAuditLog({
+            action: 'EMAIL_RESEND',
+            entity: 'PARTNER',
+            entityId: partner.partnerId,
+            performedBy: req.user.email,
+            performedByRole: req.user.role,
+            ...extractAuditInfo(req),
+            details: 'Partner agreement PDF resent'
+        });
+
+        res.json({
+            success: true,
+            message: `Agreement PDF resent to ${partner.email}`,
+            emailSent: partner.email
+        });
+    } catch (error) {
+        console.error('Resend agreement error:', error);
+        res.status(500).json({ error: 'Failed to resend agreement' });
+    }
+});
+
+// POST /api/admin/customers/:id/resend-approval
+// Resend approval/activation email to customer
+router.post('/customers/:id/resend-approval', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS'), async (req, res) => {
+    try {
+        const customer = await Customer.findOne({ customerId: req.params.id });
+        if (!customer) {
+            return res.status(404).json({ error: 'Customer not found' });
+        }
+
+        if (customer.status !== 'APPROVED') {
+            return res.status(400).json({ error: 'Customer is not approved. Cannot resend approval email.' });
+        }
+
+        const service = await Service.findOne({ customerId: customer.customerId });
+        if (!service) {
+            return res.status(404).json({ error: 'Service not found for customer' });
+        }
+
+        // Send approval email
+        const result = await sendCustomerApprovalEmail(customer, service);
+
+        if (!result.success) {
+            return res.status(500).json({ error: 'Failed to send email', details: result.error });
+        }
+
+        // Audit log
+        await createAuditLog({
+            action: 'EMAIL_RESEND',
+            entity: 'CUSTOMER',
+            entityId: customer.customerId,
+            performedBy: req.user.email,
+            performedByRole: req.user.role,
+            ...extractAuditInfo(req),
+            details: 'Approval email resent to customer'
+        });
+
+        res.json({
+            success: true,
+            message: `Approval email resent to ${customer.email}`,
+            emailSent: customer.email
+        });
+    } catch (error) {
+        console.error('Resend approval email error:', error);
+        res.status(500).json({ error: 'Failed to resend approval email' });
+    }
+});
+
+// GET /api/admin/email-history/:entityType/:entityId
+// Get email resend history for an entity (from audit logs)
+router.get('/email-history/:entityType/:entityId', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS', 'OPERATIONS'), async (req, res) => {
+    try {
+        const { entityType, entityId } = req.params;
+
+        const logs = await AuditLog.find({
+            entity: entityType.toUpperCase(),
+            entityId: entityId,
+            $or: [
+                { action: 'EMAIL_RESEND' },
+                { details: { $regex: /email/i } }
+            ]
+        }).sort({ timestamp: -1 }).limit(20).lean();
+
+        res.json({ emailHistory: logs });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch email history' });
     }
 });
 

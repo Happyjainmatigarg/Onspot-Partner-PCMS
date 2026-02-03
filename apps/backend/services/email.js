@@ -62,37 +62,13 @@ function getEmailFooter() {
 }
 
 /**
- * Get Partner Agreement DOCX file as attachment
- */
-function getPartnerAgreementAttachment(partnerId) {
-  const agreementPath = path.join(__dirname, '../templates/partner-agreement.docx');
-
-  try {
-    if (fs.existsSync(agreementPath)) {
-      return {
-        filename: `Partner_Agreement_${partnerId}.docx`,
-        path: agreementPath
-      };
-    }
-  } catch (error) {
-    console.error('Failed to read partner agreement file:', error);
-  }
-  return null;
-}
-
-/**
  * Send partner welcome email with Partner Portal theme
+ * Attaches PDF agreement (not DOCX as per user requirement)
  */
 async function sendPartnerWelcomeEmail(partner, pdfBuffer = null) {
   const attachments = [];
 
-  // Add DOCX agreement if available
-  const docxAttachment = getPartnerAgreementAttachment(partner.partnerId);
-  if (docxAttachment) {
-    attachments.push(docxAttachment);
-  }
-
-  // Add PDF if provided (fallback)
+  // Add PDF agreement if provided
   if (pdfBuffer) {
     attachments.push({
       filename: `Partner_Agreement_${partner.partnerId}.pdf`,
