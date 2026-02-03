@@ -64,15 +64,17 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ error: 'Mobile already registered' });
         }
 
-        // Validate contact person differs from applicant
-        if (contactPerson.name.toLowerCase() === applicantName.toLowerCase()) {
-            return res.status(400).json({ error: 'Contact person name must differ from applicant name' });
-        }
-        if (contactPerson.mobile === mobile) {
-            return res.status(400).json({ error: 'Contact person mobile must differ from owner mobile' });
-        }
-        if (contactPerson.email.toLowerCase() === email.toLowerCase()) {
-            return res.status(400).json({ error: 'Contact person email must differ from owner email' });
+        // Validate contact person differs from applicant (only if separate contact person provided)
+        if (contactPerson && contactPerson.name && contactPerson.name !== applicantName + ' (Contact)') {
+            if (contactPerson.name.toLowerCase() === applicantName.toLowerCase()) {
+                return res.status(400).json({ error: 'Contact person name must differ from applicant name' });
+            }
+            if (contactPerson.mobile === mobile) {
+                return res.status(400).json({ error: 'Contact person mobile must differ from owner mobile' });
+            }
+            if (contactPerson.email && contactPerson.email.toLowerCase() === email.toLowerCase()) {
+                return res.status(400).json({ error: 'Contact person email must differ from owner email' });
+            }
         }
 
         // Generate Partner ID

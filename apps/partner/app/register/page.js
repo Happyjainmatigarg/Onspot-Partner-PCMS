@@ -136,10 +136,28 @@ export default function RegisterPage() {
         setLoading(true);
         setError('');
         try {
+            // Map frontend fields to backend expected structure
+            const registrationData = {
+                applicantName: formData.applicantName,
+                email: formData.email,
+                mobile: formData.mobile,
+                mobileVerified: otpVerified,
+                panNumber: formData.pan,
+                gstNumber: formData.gstNumber || 'N/A',
+                partnerType: formData.partnerType,
+                billingAddress: formData.billingAddress,
+                // Contact person - use applicant details with slight modification for now
+                contactPerson: {
+                    name: formData.tradeName || formData.applicantName + ' (Contact)',
+                    mobile: formData.mobile,
+                    email: formData.email
+                }
+            };
+
             const res = await fetch('/api/partners/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(registrationData)
             });
 
             // Try to parse JSON response
