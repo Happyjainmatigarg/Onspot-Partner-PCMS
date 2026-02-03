@@ -210,7 +210,8 @@ router.post('/login', async (req, res) => {
 // POST /api/partners/set-password
 router.post('/set-password', async (req, res) => {
     try {
-        const { partnerId, password, confirmPassword } = req.body;
+        const { partnerId, password, confirmPassword: confirmPass } = req.body;
+        const confirmPassword = confirmPass || password;  // Support frontend sending only password
 
         if (password !== confirmPassword) {
             return res.status(400).json({ error: 'Passwords do not match' });

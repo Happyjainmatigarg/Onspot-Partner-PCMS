@@ -32,13 +32,14 @@ router.post('/send', async (req, res) => {
 // POST /api/otp/verify
 router.post('/verify', async (req, res) => {
     try {
-        const { mobile, code } = req.body;
+        const { mobile, code, otp } = req.body;
+        const verificationCode = code || otp;  // Accept both field names for compatibility
 
-        if (!mobile || !code) {
+        if (!mobile || !verificationCode) {
             return res.status(400).json({ error: 'Mobile and code are required' });
         }
 
-        const result = await verifyOTP(mobile, code);
+        const result = await verifyOTP(mobile, verificationCode);
 
         if (!result.success) {
             return res.status(400).json(result);

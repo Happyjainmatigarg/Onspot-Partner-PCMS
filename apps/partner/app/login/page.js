@@ -80,8 +80,10 @@ export default function LoginPage() {
             return;
         }
 
-        if (!isAlphanumeric(newPassword)) {
-            setError('Password must contain at least one letter and one number (alphanumeric)');
+        // Password must have uppercase, lowercase, number, and special character (@#$%&*)
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$%&*])[A-Za-z\d@#$%&*]{8,}$/;
+        if (!passwordRegex.test(newPassword)) {
+            setError('Password must contain uppercase, lowercase, number, and special character (@#$%&*)');
             return;
         }
 
@@ -266,9 +268,17 @@ export default function LoginPage() {
                                                     <span className={`w-1.5 h-1.5 rounded-full ${newPassword.length >= 8 ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
                                                     At least 8 characters
                                                 </li>
-                                                <li className={`flex items-center gap-2 ${isAlphanumeric(newPassword) ? 'text-emerald-600' : ''}`}>
-                                                    <span className={`w-1.5 h-1.5 rounded-full ${isAlphanumeric(newPassword) ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
-                                                    Must be alphanumeric (letters + numbers)
+                                                <li className={`flex items-center gap-2 ${/[a-z]/.test(newPassword) && /[A-Z]/.test(newPassword) ? 'text-emerald-600' : ''}`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${/[a-z]/.test(newPassword) && /[A-Z]/.test(newPassword) ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
+                                                    Uppercase and lowercase letters
+                                                </li>
+                                                <li className={`flex items-center gap-2 ${/\d/.test(newPassword) ? 'text-emerald-600' : ''}`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${/\d/.test(newPassword) ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
+                                                    At least one number
+                                                </li>
+                                                <li className={`flex items-center gap-2 ${/[@#$%&*]/.test(newPassword) ? 'text-emerald-600' : ''}`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${/[@#$%&*]/.test(newPassword) ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
+                                                    Special character (@#$%&*)
                                                 </li>
                                                 <li className={`flex items-center gap-2 ${newPassword && confirmPassword && newPassword === confirmPassword ? 'text-emerald-600' : ''}`}>
                                                     <span className={`w-1.5 h-1.5 rounded-full ${newPassword && confirmPassword && newPassword === confirmPassword ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>

@@ -113,7 +113,7 @@ export default function RegisterPage() {
             const res = await fetch('/api/otp/verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mobile: formData.mobile, otp })
+                body: JSON.stringify({ mobile: formData.mobile, code: otp })
             });
             const data = await res.json();
             if (!res.ok || !data.verified) throw new Error(data.error || 'Invalid OTP');

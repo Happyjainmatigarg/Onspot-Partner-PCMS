@@ -2,33 +2,36 @@ const nodemailer = require('nodemailer');
 
 // Create transporter based on environment
 const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.EMAIL_PORT || '587'),
-    secure: false,
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
+  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.EMAIL_PORT || '587'),
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  },
+  tls: {
+    rejectUnauthorized: false  // Allow self-signed certs for development
+  }
 });
 
 const COMPANY_INFO = {
-    legalName: 'Ccommerce Ecosystem Pvt. Ltd.',
-    brandName: 'OnSpot™',
-    supportEmail: 'support@onspot.one',
-    partnerEmail: 'partner@onspot.one',
-    accountsEmail: 'accounts@onspot.one'
+  legalName: 'Ccommerce Ecosystem Pvt. Ltd.',
+  brandName: 'OnSpot™',
+  supportEmail: 'support@onspot.one',
+  partnerEmail: 'partner@onspot.one',
+  accountsEmail: 'accounts@onspot.one'
 };
 
 /**
  * Send partner welcome email
  */
 async function sendPartnerWelcomeEmail(partner, pdfBuffer = null) {
-    const mailOptions = {
-        from: `"${COMPANY_INFO.brandName}" <${COMPANY_INFO.partnerEmail}>`,
-        to: partner.email,
-        cc: COMPANY_INFO.accountsEmail,
-        subject: `Welcome to ${COMPANY_INFO.brandName} Partner Network | Partner ID: ${partner.partnerId}`,
-        html: `
+  const mailOptions = {
+    from: `"${COMPANY_INFO.brandName}" <${COMPANY_INFO.partnerEmail}>`,
+    to: partner.email,
+    cc: COMPANY_INFO.accountsEmail,
+    subject: `Welcome to ${COMPANY_INFO.brandName} Partner Network | Partner ID: ${partner.partnerId}`,
+    html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; text-align: center;">
           <h1 style="color: white; margin: 0;">${COMPANY_INFO.brandName}</h1>
@@ -97,32 +100,32 @@ async function sendPartnerWelcomeEmail(partner, pdfBuffer = null) {
         </div>
       </div>
     `,
-        attachments: pdfBuffer ? [{
-            filename: `Partner_Agreement_${partner.partnerId}.pdf`,
-            content: pdfBuffer
-        }] : []
-    };
+    attachments: pdfBuffer ? [{
+      filename: `Partner_Agreement_${partner.partnerId}.pdf`,
+      content: pdfBuffer
+    }] : []
+  };
 
-    try {
-        await transporter.sendMail(mailOptions);
-        console.log(`Welcome email sent to ${partner.email}`);
-        return { success: true };
-    } catch (error) {
-        console.error('Failed to send welcome email:', error);
-        return { success: false, error: error.message };
-    }
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Welcome email sent to ${partner.email}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to send welcome email:', error);
+    return { success: false, error: error.message };
+  }
 }
 
 /**
  * Send new customer pending approval notification to accounts
  */
 async function sendCustomerPendingEmail(customer, product, service, partner) {
-    const mailOptions = {
-        from: `"${COMPANY_INFO.brandName}" <${COMPANY_INFO.partnerEmail}>`,
-        to: COMPANY_INFO.accountsEmail,
-        cc: 'admin@onspot.one',
-        subject: `New Customer Registration — Pending Approval | ${customer.customerId}`,
-        html: `
+  const mailOptions = {
+    from: `"${COMPANY_INFO.brandName}" <${COMPANY_INFO.partnerEmail}>`,
+    to: COMPANY_INFO.accountsEmail,
+    cc: 'admin@onspot.one',
+    subject: `New Customer Registration — Pending Approval | ${customer.customerId}`,
+    html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #f59e0b; padding: 20px; text-align: center;">
           <h1 style="color: white; margin: 0;">⏳ Pending Approval</h1>
@@ -172,26 +175,26 @@ async function sendCustomerPendingEmail(customer, product, service, partner) {
         </div>
       </div>
     `
-    };
+  };
 
-    try {
-        await transporter.sendMail(mailOptions);
-        return { success: true };
-    } catch (error) {
-        console.error('Failed to send pending email:', error);
-        return { success: false, error: error.message };
-    }
+  try {
+    await transporter.sendMail(mailOptions);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to send pending email:', error);
+    return { success: false, error: error.message };
+  }
 }
 
 /**
  * Send customer approval email
  */
 async function sendCustomerApprovalEmail(customer, service) {
-    const mailOptions = {
-        from: `"${COMPANY_INFO.brandName}" <${COMPANY_INFO.partnerEmail}>`,
-        to: customer.email,
-        subject: `Your ${COMPANY_INFO.brandName} Service is Now Active!`,
-        html: `
+  const mailOptions = {
+    from: `"${COMPANY_INFO.brandName}" <${COMPANY_INFO.partnerEmail}>`,
+    to: customer.email,
+    subject: `Your ${COMPANY_INFO.brandName} Service is Now Active!`,
+    html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; text-align: center;">
           <h1 style="color: white; margin: 0;">✓ Service Activated!</h1>
@@ -225,20 +228,20 @@ async function sendCustomerApprovalEmail(customer, service) {
         </div>
       </div>
     `
-    };
+  };
 
-    try {
-        await transporter.sendMail(mailOptions);
-        return { success: true };
-    } catch (error) {
-        console.error('Failed to send approval email:', error);
-        return { success: false, error: error.message };
-    }
+  try {
+    await transporter.sendMail(mailOptions);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to send approval email:', error);
+    return { success: false, error: error.message };
+  }
 }
 
 module.exports = {
-    sendPartnerWelcomeEmail,
-    sendCustomerPendingEmail,
-    sendCustomerApprovalEmail,
-    transporter
+  sendPartnerWelcomeEmail,
+  sendCustomerPendingEmail,
+  sendCustomerApprovalEmail,
+  transporter
 };
