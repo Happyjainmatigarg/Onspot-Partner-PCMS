@@ -1,17 +1,17 @@
 const mongoose = require('mongoose');
 
 const addressSchema = new mongoose.Schema({
-    street: { type: String, required: true, minlength: 10 },
-    city: { type: String, required: true, minlength: 3 },
-    state: { type: String, required: true },
-    pinCode: { type: String, required: true, match: /^\d{6}$/ }
+    street: { type: String, default: '' },
+    city: { type: String, default: '' },
+    state: { type: String, default: '' },
+    pinCode: { type: String, default: '' }
 }, { _id: false });
 
 const contactPersonSchema = new mongoose.Schema({
-    name: { type: String, required: true, minlength: 3 },
-    mobile: { type: String, required: true, match: /^[6-9]\d{9}$/ },
-    email: { type: String, required: true },
-    address: addressSchema
+    name: { type: String, default: '' },
+    mobile: { type: String, default: '' },
+    email: { type: String, default: '' },
+    address: { type: addressSchema, required: false }
 }, { _id: false });
 
 const partnerSchema = new mongoose.Schema({
@@ -30,8 +30,7 @@ const partnerSchema = new mongoose.Schema({
     applicantName: {
         type: String,
         required: true,
-        minlength: 3,
-        match: /^[a-zA-Z\s]+$/
+        minlength: 2
     },
     email: {
         type: String,
@@ -51,21 +50,19 @@ const partnerSchema = new mongoose.Schema({
     },
     gstNumber: {
         type: String,
-        required: true,
-        match: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
+        default: 'N/A'
     },
     panNumber: {
         type: String,
-        required: true,
-        match: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
+        required: true
     },
     billingAddress: {
         type: addressSchema,
-        required: true
+        default: () => ({})
     },
     contactPerson: {
         type: contactPersonSchema,
-        required: true
+        default: () => ({})
     },
     password: String,
     passwordSet: {
