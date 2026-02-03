@@ -216,6 +216,52 @@ router.get('/partners/:id', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS', '
     }
 });
 
+// PATCH /api/admin/partners/:id/status
+router.patch('/partners/:id/status', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS'), async (req, res) => {
+    try {
+        const { status, reason } = req.body;
+        const validStatuses = ['ACTIVE', 'SUSPENDED', 'REJECTED', 'APPROVED', 'PENDING'];
+
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ error: 'Invalid status' });
+        }
+
+        const partner = await Partner.findOne({ partnerId: req.params.id });
+        if (!partner) {
+            return res.status(404).json({ error: 'Partner not found' });
+        }
+
+        const oldStatus = partner.status;
+        partner.status = status;
+        if (reason) partner.statusReason = reason;
+
+        // If approving, ensure mobile verified
+        if (status === 'APPROVED' || status === 'ACTIVE') {
+            partner.mobileVerified = true;
+        }
+
+        await partner.save();
+
+        // Audit log
+        await createAuditLog({
+            action: 'UPDATE_STATUS',
+            entity: 'PARTNER',
+            entityId: partner.partnerId,
+            performedBy: req.user.email,
+            performedByRole: req.user.role,
+            oldData: { status: oldStatus },
+            newData: { status },
+            ...extractAuditInfo(req),
+            details: `Partner status updated to ${status}${reason ? ': ' + reason : ''}`
+        });
+
+        res.json({ success: true, message: `Partner status updated to ${status}` });
+    } catch (error) {
+        console.error('Update partner status error:', error);
+        res.status(500).json({ error: 'Failed to update partner status' });
+    }
+});
+
 // CUSTOMERS CRUD
 router.get('/customers', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS', 'OPERATIONS'), async (req, res) => {
     try {

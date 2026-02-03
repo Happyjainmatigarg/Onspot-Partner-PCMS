@@ -293,6 +293,140 @@ router.post('/set-password', async (req, res) => {
     }
 });
 
+// POST /api/partners/forgot-password
+// Request password reset - sends OTP to partner email
+router.post('/forgot-password', async (req, res) => {
+    try {
+        const { email, partnerId } = req.body;
+
+        if (!email && !partnerId) {
+            return res.status(400).json({ error: 'Email or Partner ID required' });
+        }
+
+        // Find partner by email or partnerId
+        let partner;
+        if (email) {
+            partner = await Partner.findOne({ email: email.toLowerCase() });
+        } else {
+            partner = await Partner.findOne({ partnerId: partnerId.toUpperCase() });
+        }
+
+        if (!partner) {
+            // Don't reveal if partner exists for security
+            return res.json({
+                success: true,
+                message: 'If the email/Partner ID is registered, you will receive an OTP shortly.',
+                identifier: email || partnerId
+            });
+        }
+
+        // Import and send OTP
+        const { sendOTP } = require('../services/otp');
+        const result = await sendOTP(partner.email, 'email');
+
+        if (!result.success) {
+            console.error('Failed to send password reset OTP:', result.error);
+            return res.status(500).json({ error: 'Failed to send OTP. Please try again.' });
+        }
+
+        // Audit log
+        await createAuditLog({
+            action: 'PASSWORD_RESET_REQUEST',
+            entity: 'PARTNER',
+            entityId: partner.partnerId,
+            performedBy: partner.email,
+            performedByRole: 'PARTNER',
+            ...extractAuditInfo(req),
+            details: 'Password reset OTP requested'
+        });
+
+        res.json({
+            success: true,
+            message: 'OTP sent to your registered email address.',
+            email: partner.email.replace(/(.{2})(.*)(@.*)/, '$1***$3'), // Mask email
+            partnerId: partner.partnerId
+        });
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({ error: 'Failed to process request' });
+    }
+});
+
+// POST /api/partners/reset-password
+// Verify OTP and set new password
+router.post('/reset-password', async (req, res) => {
+    try {
+        const { email, partnerId, otp, password, confirmPassword: confirmPass } = req.body;
+        const confirmPassword = confirmPass || password;
+
+        if (!otp || !password) {
+            return res.status(400).json({ error: 'OTP and new password are required' });
+        }
+
+        if (!email && !partnerId) {
+            return res.status(400).json({ error: 'Email or Partner ID required' });
+        }
+
+        if (password !== confirmPassword) {
+            return res.status(400).json({ error: 'Passwords do not match' });
+        }
+
+        // Password strength validation
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$%&*])[A-Za-z\d@#$%&*]{8,}$/;
+        if (!passwordRegex.test(password)) {
+            return res.status(400).json({
+                error: 'Password must be at least 8 characters with uppercase, lowercase, number, and special character (@#$%&*)'
+            });
+        }
+
+        // Find partner
+        let partner;
+        if (email) {
+            partner = await Partner.findOne({ email: email.toLowerCase() });
+        } else {
+            partner = await Partner.findOne({ partnerId: partnerId.toUpperCase() });
+        }
+
+        if (!partner) {
+            return res.status(404).json({ error: 'Partner not found' });
+        }
+
+        // Verify OTP
+        const { verifyOTP } = require('../services/otp');
+        const otpResult = await verifyOTP(partner.email, otp);
+
+        if (!otpResult.success) {
+            return res.status(400).json({ error: otpResult.error || 'Invalid or expired OTP' });
+        }
+
+        // Update password
+        const hashedPassword = await bcrypt.hash(password, 10);
+        partner.password = hashedPassword;
+        partner.passwordSet = true;
+        await partner.save();
+
+        // Audit log
+        await createAuditLog({
+            action: 'PASSWORD_RESET',
+            entity: 'PARTNER',
+            entityId: partner.partnerId,
+            performedBy: partner.email,
+            performedByRole: 'PARTNER',
+            ...extractAuditInfo(req),
+            details: 'Password reset successfully via OTP verification'
+        });
+
+        res.json({
+            success: true,
+            message: 'Password reset successfully! You can now login with your new password.',
+            partnerId: partner.partnerId
+        });
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({ error: 'Failed to reset password' });
+    }
+});
+
 // GET /api/partners/profile (protected)
 router.get('/profile', authenticate, async (req, res) => {
     try {

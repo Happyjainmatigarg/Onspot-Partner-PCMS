@@ -157,10 +157,10 @@ export default function PartnersPage() {
                                 filteredPartners.map((partner) => (
                                     <tr key={partner._id} className="hover:bg-gray-50">
                                         <td className="px-6 py-4 font-mono text-sm">{partner.partnerId}</td>
-                                        <td className="px-6 py-4">{partner.name}</td>
-                                        <td className="px-6 py-4">{partner.phone}</td>
+                                        <td className="px-6 py-4">{partner.applicantName}</td>
+                                        <td className="px-6 py-4">{partner.mobile}</td>
                                         <td className="px-6 py-4">
-                                            <span className="text-sm font-medium">{partner.tier}</span>
+                                            <span className="text-sm font-medium">{partner.partnerType}</span>
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`badge ${getStatusBadge(partner.status)}`}>
