@@ -48,6 +48,10 @@ const partnerSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    emailVerified: {
+        type: Boolean,
+        default: false
+    },
     gstNumber: {
         type: String,
         default: 'N/A'

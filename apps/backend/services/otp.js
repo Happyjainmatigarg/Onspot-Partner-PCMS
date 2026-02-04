@@ -86,45 +86,12 @@ async function sendEmailOTP(email, otp) {
 }
 
 /**
- * Send OTP via SMS using TextBelt (Free Open Source API)
- * TextBelt offers 1 free text per day for testing, unlimited with key
- * For production, use TEXTBELT_KEY environment variable
+ * Send OTP via SMS - DISABLED
+ * SMS OTP is disabled. Use Email OTP instead.
  */
 async function sendSMSOTP(mobile, otp) {
-    // Format mobile number (add country code if not present)
-    let formattedMobile = mobile;
-    if (!mobile.startsWith('+')) {
-        formattedMobile = '+91' + mobile; // Default to India
-    }
-
-    const textbeltKey = process.env.TEXTBELT_KEY || 'textbelt'; // 'textbelt' = 1 free/day
-
-    try {
-        const response = await fetch('https://textbelt.com/text', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                phone: formattedMobile,
-                message: `Your OnSpot verification code is: ${otp}. Valid for ${OTP_EXPIRY_MINUTES} minutes. Do not share.`,
-                key: textbeltKey
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            console.log('[OTP] SMS sent via TextBelt:', data.textId);
-            return { success: true, textId: data.textId, method: 'sms' };
-        } else {
-            console.error('[OTP] TextBelt error:', data.error);
-            // Fall back to console OTP if SMS fails
-            return { success: false, error: data.error, quotaRemaining: data.quotaRemaining };
-        }
-
-    } catch (error) {
-        console.error('[OTP] SMS sending failed:', error.message);
-        return { success: false, error: error.message };
-    }
+    console.log('[OTP] SMS OTP is disabled. Use Email OTP instead.');
+    return { success: false, error: 'SMS_DISABLED', message: 'SMS OTP is disabled. Please use Email OTP.' };
 }
 
 /**
@@ -200,9 +167,9 @@ async function sendOTP(identifier, method = 'auto') {
     // Check if identifier is an email
     const isEmail = identifier.includes('@');
 
-    // Auto-detect method if not specified
-    if (method === 'auto') {
-        method = isEmail ? 'email' : 'sms';
+    // Force email method (SMS is disabled)
+    if (method === 'auto' || method === 'sms') {
+        method = 'email';
     }
 
     // Always log to console in development

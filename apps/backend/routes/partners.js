@@ -39,7 +39,7 @@ router.post('/register', async (req, res) => {
             applicantName,
             email,
             mobile,
-            mobileVerified,
+            emailVerified,
             gstNumber,
             panNumber,
             billingAddress,
@@ -47,10 +47,9 @@ router.post('/register', async (req, res) => {
             partnerType
         } = req.body;
 
-        // Validation - Skip OTP verification if Fonoster is not configured
-        const fonosterConfigured = process.env.FONOSTER_API_KEY && process.env.FONOSTER_API_SECRET;
-        if (!mobileVerified && fonosterConfigured) {
-            return res.status(400).json({ error: 'Mobile number must be verified via OTP' });
+        // Validation - Require email verification
+        if (!emailVerified) {
+            return res.status(400).json({ error: 'Email must be verified via OTP' });
         }
 
         // Check uniqueness
@@ -77,7 +76,8 @@ router.post('/register', async (req, res) => {
             applicantName,
             email: email.toLowerCase(),
             mobile,
-            mobileVerified: true,
+            mobileVerified: false,
+            emailVerified: true,
             gstNumber: gstNumber.toUpperCase(),
             panNumber: panNumber.toUpperCase(),
             billingAddress,

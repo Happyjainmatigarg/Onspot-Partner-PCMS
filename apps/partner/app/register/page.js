@@ -83,7 +83,7 @@ export default function RegisterPage() {
         });
     };
 
-    // Send OTP via SMS
+    // Send OTP via Email
     const sendOtp = async () => {
         setError('');
         setLoading(true);
@@ -91,14 +91,14 @@ export default function RegisterPage() {
             const res = await fetch('/api/otp/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mobile: formData.mobile, method: 'sms' })
+                body: JSON.stringify({ email: formData.email, method: 'email' })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
             setOtpSent(true);
         } catch (err) {
             // For testing without backend: auto-success
-            console.log('Mock OTP sent to:', formData.mobile);
+            console.log('Mock OTP sent to:', formData.email);
             setOtpSent(true);
         } finally {
             setLoading(false);
@@ -112,7 +112,7 @@ export default function RegisterPage() {
             const res = await fetch('/api/otp/verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mobile: formData.mobile, code: otp })
+                body: JSON.stringify({ email: formData.email, code: otp })
             });
             const data = await res.json();
             if (!res.ok || !data.verified) throw new Error(data.error || 'Invalid OTP');
@@ -140,7 +140,7 @@ export default function RegisterPage() {
                 applicantName: formData.applicantName,
                 email: formData.email,
                 mobile: formData.mobile,
-                mobileVerified: otpVerified,
+                emailVerified: otpVerified,
                 panNumber: formData.pan,
                 gstNumber: formData.gstNumber || 'N/A',
                 partnerType: formData.partnerType,
@@ -273,39 +273,38 @@ export default function RegisterPage() {
                     )}
 
                     <div className="bg-white rounded-2xl shadow-soft p-6 sm:p-8">
-                        {/* Step 1: Mobile Verification */}
+                        {/* Step 1: Email Verification */}
                         {step === 1 && (
                             <div className="space-y-5">
                                 <div className="text-center mb-4">
-                                    <h2 className="font-display text-xl font-bold text-primary-600">Mobile Verification</h2>
-                                    <p className="text-sm text-slate-500">Verify your mobile via SMS OTP</p>
+                                    <h2 className="font-display text-xl font-bold text-primary-600">Email Verification</h2>
+                                    <p className="text-sm text-slate-500">Verify your email via OTP</p>
                                 </div>
 
                                 <div>
-                                    <label className="label">Mobile Number *</label>
+                                    <label className="label">Email Address *</label>
                                     <input
-                                        type="tel"
-                                        value={formData.mobile}
-                                        onChange={(e) => updateField('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
-                                        placeholder="10-digit mobile number"
+                                        type="email"
+                                        value={formData.email}
+                                        onChange={(e) => updateField('email', e.target.value)}
+                                        placeholder="your@email.com"
                                         className="input-field"
                                         disabled={otpSent}
-                                        maxLength={10}
                                     />
                                 </div>
 
                                 {!otpSent ? (
                                     <button
                                         onClick={sendOtp}
-                                        disabled={loading || formData.mobile.length !== 10}
+                                        disabled={loading || !formData.email.includes('@')}
                                         className="btn-primary w-full disabled:opacity-50"
                                     >
-                                        {loading ? 'Sending...' : '📱 Get OTP via SMS'}
+                                        {loading ? 'Sending...' : '📧 Get OTP via Email'}
                                     </button>
                                 ) : !otpVerified ? (
                                     <>
                                         <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm text-emerald-700">
-                                            📱 OTP sent to your mobile number via SMS. Please check your messages.
+                                            📧 OTP sent to your email address. Please check your inbox.
                                         </div>
                                         <div>
                                             <label className="label">Enter OTP *</label>
@@ -332,7 +331,7 @@ export default function RegisterPage() {
                                 ) : (
                                     <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex items-center gap-2 text-emerald-700">
                                         <Check className="w-5 h-5" />
-                                        <span className="font-medium">Mobile verified successfully!</span>
+                                        <span className="font-medium">Email verified successfully!</span>
                                     </div>
                                 )}
                             </div>
@@ -423,11 +422,8 @@ export default function RegisterPage() {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="label">Email *</label>
-                                        <div className="relative">
-                                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                            <input type="email" value={formData.email} onChange={(e) => updateField('email', e.target.value)} className="input-field pl-10" placeholder="your@email.com" />
-                                        </div>
+                                        <label className="label">Mobile Number *</label>
+                                        <input type="tel" value={formData.mobile} onChange={(e) => updateField('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))} className="input-field" placeholder="10-digit mobile" maxLength={10} />
                                     </div>
                                     <div>
                                         <label className="label">PAN *</label>
