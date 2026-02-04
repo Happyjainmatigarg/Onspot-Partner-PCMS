@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { ShoppingCart, Search, Filter, ArrowUpRight, IndianRupee } from 'lucide-react';
+import Link from 'next/link';
 
 export default function SalesPage() {
     const [sales, setSales] = useState([]);
@@ -49,15 +50,20 @@ export default function SalesPage() {
                     <h1 className="text-2xl font-bold text-gray-900">Sales History</h1>
                     <p className="text-gray-500">Track and manage your service sales</p>
                 </div>
-                <div className="bg-white p-2 rounded-lg border flex items-center gap-2 w-full sm:w-auto">
-                    <Search className="w-5 h-5 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Search sales..."
-                        className="outline-none text-sm w-full sm:w-64"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="bg-white p-2 rounded-lg border flex items-center gap-2 flex-1 sm:flex-initial">
+                        <Search className="w-5 h-5 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search sales..."
+                            className="outline-none text-sm w-full sm:w-64"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    <Link href="/dashboard/sales/new" className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2 whitespace-nowrap shadow-sm">
+                        <ArrowUpRight className="w-4 h-4" /> New Sale
+                    </Link>
                 </div>
             </div>
 
@@ -110,8 +116,8 @@ export default function SalesPage() {
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`badge ${sale.status === 'ACTIVE' ? 'badge-success' :
-                                                    sale.status === 'PENDING' ? 'badge-warning' :
-                                                        'badge-danger'
+                                                sale.status === 'PENDING' ? 'badge-warning' :
+                                                    'badge-danger'
                                                 }`}>
                                                 {sale.status}
                                             </span>

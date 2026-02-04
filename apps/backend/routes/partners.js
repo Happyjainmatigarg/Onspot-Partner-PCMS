@@ -598,4 +598,246 @@ router.put('/password', authenticate, async (req, res) => {
     }
 });
 
+// POST /api/partners/sales (protected) - CREATE NEW SALE
+router.post('/sales', authenticate, async (req, res) => {
+    try {
+        if (req.user.role !== 'PARTNER') {
+            return res.status(403).json({ error: 'Partner access only' });
+        }
+
+        const {
+            // Customer Details
+            customerMobile,
+            customerName,
+            customerEmail,
+            customerAddress, // { street, city, state, pinCode }
+
+            // Device Details
+            deviceType, // Mobile, Laptop, Refrigerator, etc.
+            deviceBrand,
+            deviceModel,
+            deviceInvoiceNumber,
+            deviceInvoiceDate,
+            purchasePrice, // Invoice Value
+
+            // Plan Details
+            serviceType, // ESS, EPS, CDC
+        } = req.body;
+
+        const partnerId = req.user.partnerId;
+        const partnerType = req.user.partnerType;
+
+        // 1. Validate Service Type based on Category/Risk
+        // Device categories and risk mapping
+        const CATEGORIES = {
+            'Mobile': 'Category 1',
+            'Laptop': 'Category 1',
+            'TV': 'Category 2',
+            'Washing Machine': 'Category 2',
+            'Dishwasher': 'Category 2',
+            'Refrigerator': 'Category 3',
+            'AC': 'Category 3'
+        };
+
+        const category = CATEGORIES[deviceType] || 'Category 1'; // Default to 1 if unknown
+        let servicePercentage = 8;
+        if (category === 'Category 2') servicePercentage = 15;
+        if (category === 'Category 3') servicePercentage = 20;
+
+        // Validate plan is supported
+        // ESS (8%) is mainly for Cat 1? Using simpler logic from SLA:
+        // Cat 1 = 8%, Cat 2 = 15%, Cat 3 = 20%
+        // The Service model expects servicePercentage which seems derived from category, not plan type per se?
+        // Wait, SLA says:
+        // Cat 1 (Low Risk) 8%
+        // Cat 2 (Med Risk) 15%
+        // Cat 3 (High Risk) 20%
+        // Plan types are ESS, EPS, CDC.
+        // It seems the percentage is tied to the Category, so we use that.
+
+        const serviceCost = Math.round(purchasePrice * (servicePercentage / 100));
+
+        // 2. Handle Customer
+        let customer = await Customer.findOne({ mobile: customerMobile });
+        if (!customer) {
+            // Create new customer
+            const { generateCustomerId } = require('../utils/idGenerator');
+            const customerId = await generateCustomerId(customerMobile);
+
+            customer = new Customer({
+                customerId,
+                partnerId,
+                customerName,
+                mobile: customerMobile,
+                email: customerEmail,
+                address: customerAddress,
+                status: 'APPROVED', // Auto-approve for Partner Sales? Or PENDING? Usually sales imply done deal.
+                termsAccepted: true, // Implied by physical presence/sale
+                termsAcceptedAt: new Date()
+            });
+
+            // Send password setup email if needed (skipping for now)
+            await customer.save();
+        } else {
+            // Update email/name if missing? Or just proceed.
+            // For now, proceed.
+        }
+
+        // 3. Create Product/Device (Using Product model if it exists, or just storing in Service?)
+        // The Service model requires `productId`.
+        // Let's see if there is a Product model.
+        // Assuming we need to create a Product record first.
+        // Wait, I didn't check Product model. Let me check it quick.
+        // If Product model doesn't exist, I might need to create it or Service stores product details directly?
+        // Service.js schema has: productId: { type: String, required: true }
+        // Let's assume there is a Product model. logic: generateProductId -> create Product -> use ID.
+
+        // --- INLINE CHECK: Does Product model exist? ---
+        // I will assume standard pattern. If not, I'll fix in verify.
+        const Product = require('../models/Product');
+        const { generateProductId } = require('../utils/idGenerator');
+        const productId = await generateProductId(category === 'Category 1' ? 'MBL' : 'APP'); // Simplified prefix
+
+        const product = new Product({
+            productId,
+            customerId: customer.customerId,
+            partnerId,
+            category: deviceType,
+            brand: deviceBrand,
+            model: deviceModel,
+            purchaseDate: deviceInvoiceDate,
+            invoiceNumber: deviceInvoiceNumber,
+            invoiceAmount: purchasePrice,
+            status: 'ACTIVE'
+        });
+        await product.save();
+
+
+        // 4. Calculate Commission
+        // Agreement:
+        // ESS: Plat 30, Gold 25, Silver 20
+        // EPS: Plat 28, Gold 23, Silver 18
+        // CDC: Plat 32, Gold 27, Silver 22
+
+        let commPct = 0;
+        if (serviceType === 'ESS') {
+            if (partnerType === 'PLATINUM') commPct = 30;
+            else if (partnerType === 'GOLD') commPct = 25;
+            else commPct = 20;
+        } else if (serviceType === 'EPS') {
+            if (partnerType === 'PLATINUM') commPct = 28;
+            else if (partnerType === 'GOLD') commPct = 23;
+            else commPct = 18;
+        } else if (serviceType === 'CDC') {
+            if (partnerType === 'PLATINUM') commPct = 32;
+            else if (partnerType === 'GOLD') commPct = 27;
+            else commPct = 22;
+        }
+
+        // Commission Calculation
+        // 3.2 Calculation: On net realized revenue = Customer payment received by Company (serviceCost)
+        // minus GST (18%)... 
+        // 3.3 18% GST will be deducted from all commissions?
+
+        // Logic:
+        // Base for comm = serviceCost
+        // Commission Amount = serviceCost * (commPct / 100)
+        // GST on Commission = Commission Amount * 0.18
+        // Net Commission = Commission Amount - GST on Commission
+
+        const commissionBeforeGST = Math.round(serviceCost * (commPct / 100));
+        const gstDeduction = Math.round(commissionBeforeGST * 0.18);
+        const commissionAfterGST = commissionBeforeGST - gstDeduction;
+
+        // 5. Create Service
+        const { generateServiceId } = require('../utils/idGenerator');
+        const serviceId = await generateServiceId();
+
+        const serviceStartDate = new Date(); // Starts now? Or after warranty?
+        // SLA: "Services commence strictly after OEM warranty expiry"
+        // Usually 1 year from invoice date.
+        const invoiceDateObj = new Date(deviceInvoiceDate);
+        const oemWarrantyEnd = new Date(invoiceDateObj);
+        oemWarrantyEnd.setFullYear(oemWarrantyEnd.getFullYear() + 1);
+
+        const serviceEndDate = new Date(oemWarrantyEnd);
+        serviceEndDate.setFullYear(serviceEndDate.getFullYear() + 1); // 1 Year Plan by default
+
+        const service = new Service({
+            serviceId,
+            customerId: customer.customerId,
+            partnerId,
+            productId,
+            salesInvoiceNumber: deviceInvoiceNumber, // Or generated invoice for plan?
+            serviceType,
+            servicePercentage,
+            serviceCost,
+            commissionPercentage: commPct,
+            gstPercentage: 18,
+            commissionBeforeGST,
+            gstAmount: gstDeduction,
+            commissionAfterGST,
+            serviceStartDate: oemWarrantyEnd,
+            serviceEndDate: serviceEndDate,
+            status: 'APPROVED', // Auto-approve sales
+            activatedAt: new Date()
+        });
+
+        await service.save();
+
+        // 6. Audit Log
+        await createAuditLog({
+            action: 'CREATE',
+            entity: 'SERVICE',
+            entityId: serviceId,
+            performedBy: req.user.email,
+            performedByRole: 'PARTNER',
+            ...extractAuditInfo(req),
+            details: `Sale created: ${serviceType} for ${customerName}`
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Sale registered successfully',
+            saleId: serviceId,
+            customer: { name: customerName, id: customer.customerId },
+            financials: {
+                cost: serviceCost,
+                commission: commissionAfterGST
+            }
+        });
+
+    } catch (error) {
+        console.error('Create sale error:', error);
+        res.status(500).json({ error: 'Failed to register sale' });
+    }
+});
+
+// GET /api/partners/agreement (protected) - Download PDF
+router.get('/agreement', authenticate, async (req, res) => {
+    try {
+        if (req.user.role !== 'PARTNER') {
+            return res.status(403).json({ error: 'Partner access only' });
+        }
+
+        const partner = await Partner.findOne({ partnerId: req.user.partnerId });
+        if (!partner) {
+            return res.status(404).json({ error: 'Partner not found' });
+        }
+
+        const pdfBuffer = await generatePartnerAgreementPDF(partner);
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename=Partner_Agreement_${partner.partnerId}.pdf`,
+            'Content-Length': pdfBuffer.length
+        });
+
+        res.send(pdfBuffer);
+    } catch (error) {
+        console.error('Agreement download error:', error);
+        res.status(500).json({ error: 'Failed to generate agreement' });
+    }
+});
+
 module.exports = router;

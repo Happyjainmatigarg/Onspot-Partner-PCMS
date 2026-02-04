@@ -75,6 +75,32 @@ export default function ProfilePage() {
         }
     };
 
+    const handleDownloadAgreement = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/partners/agreement', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Partner_Agreement_${partner.partnerId}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } else {
+                alert('Failed to download agreement');
+            }
+        } catch (error) {
+            console.error('Download error:', error);
+            alert('Error downloading agreement');
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -134,7 +160,10 @@ export default function ProfilePage() {
                             <FileText className="w-5 h-5 text-gray-400" />
                             Agreements
                         </h3>
-                        <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer flex items-center justify-between">
+                        <div
+                            className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer flex items-center justify-between"
+                            onClick={handleDownloadAgreement}
+                        >
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 bg-red-50 rounded flex items-center justify-center text-red-500">
                                     ID
