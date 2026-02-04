@@ -44,12 +44,27 @@ router.post('/register', async (req, res) => {
             panNumber,
             billingAddress,
             contactPerson,
-            partnerType
+            partnerType,
+            password
         } = req.body;
 
         // Validation - Require email verification
         if (!emailVerified) {
             return res.status(400).json({ error: 'Email must be verified via OTP' });
+        }
+
+        // Validate password if provided
+        let hashedPassword = null;
+        let passwordSet = false;
+        if (password) {
+            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$%&*])[A-Za-z\d@#$%&*]{8,}$/;
+            if (!passwordRegex.test(password)) {
+                return res.status(400).json({
+                    error: 'Password must be at least 8 characters with uppercase, lowercase, number, and special character (@#$%&*)'
+                });
+            }
+            hashedPassword = await bcrypt.hash(password, 10);
+            passwordSet = true;
         }
 
         // Check uniqueness
@@ -83,7 +98,8 @@ router.post('/register', async (req, res) => {
             billingAddress,
             contactPerson,
             status: 'ACTIVE',
-            passwordSet: false,
+            password: hashedPassword,
+            passwordSet: passwordSet,
             createdBy: 'SELF'
         });
 

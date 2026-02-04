@@ -66,6 +66,8 @@ export default function RegisterPage() {
         bankBranch: '',
         accountNumber: '',
         ifscCode: '',
+        password: '',
+        confirmPassword: '',
         termsAccepted: false
     });
 
@@ -145,6 +147,7 @@ export default function RegisterPage() {
                 gstNumber: formData.gstNumber || 'N/A',
                 partnerType: formData.partnerType,
                 billingAddress: formData.billingAddress,
+                password: formData.password,
                 // Contact person - use applicant details with slight modification for now
                 contactPerson: {
                     name: formData.tradeName || formData.applicantName + ' (Contact)',
@@ -184,7 +187,7 @@ export default function RegisterPage() {
         }
     };
 
-    const stepLabels = ['Mobile', 'Tier', 'Business', 'Address', 'Bank', 'Review'];
+    const stepLabels = ['Email', 'Tier', 'Business', 'Address', 'Bank & Password', 'Review'];
 
     const getTierCardClass = (tierKey) => {
         const tier = PARTNER_TIERS[tierKey];
@@ -329,10 +332,18 @@ export default function RegisterPage() {
                                         </button>
                                     </>
                                 ) : (
-                                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex items-center gap-2 text-emerald-700">
-                                        <Check className="w-5 h-5" />
-                                        <span className="font-medium">Email verified successfully!</span>
-                                    </div>
+                                    <>
+                                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex items-center gap-2 text-emerald-700">
+                                            <Check className="w-5 h-5" />
+                                            <span className="font-medium">Email verified successfully!</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setStep(2)}
+                                            className="btn-primary w-full flex items-center justify-center gap-2"
+                                        >
+                                            Continue <ArrowRight className="w-4 h-4" />
+                                        </button>
+                                    </>
                                 )}
                             </div>
                         )}
@@ -494,11 +505,11 @@ export default function RegisterPage() {
                             </div>
                         )}
 
-                        {/* Step 5: Bank Details */}
+                        {/* Step 5: Bank Details & Password */}
                         {step === 5 && (
                             <div className="space-y-4">
                                 <div className="text-center mb-4">
-                                    <h2 className="font-display text-xl font-bold text-primary-600">Bank Details</h2>
+                                    <h2 className="font-display text-xl font-bold text-primary-600">Bank Details & Password</h2>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
@@ -520,11 +531,32 @@ export default function RegisterPage() {
                                     </div>
                                 </div>
 
+                                <hr className="border-slate-200 my-4" />
+
+                                <div className="text-center mb-2">
+                                    <h3 className="font-display text-lg font-semibold text-primary-600">Set Your Password</h3>
+                                    <p className="text-xs text-slate-500">Min 8 chars, uppercase, lowercase, number, special char (@#$%&*)</p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="label">Password *</label>
+                                        <input type="password" value={formData.password} onChange={(e) => updateField('password', e.target.value)} className="input-field" placeholder="Enter password" />
+                                    </div>
+                                    <div>
+                                        <label className="label">Confirm Password *</label>
+                                        <input type="password" value={formData.confirmPassword} onChange={(e) => updateField('confirmPassword', e.target.value)} className="input-field" placeholder="Confirm password" />
+                                    </div>
+                                </div>
+                                {formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                                    <p className="text-red-500 text-xs">Passwords do not match</p>
+                                )}
+
                                 <div className="flex gap-3 pt-4">
                                     <button onClick={() => setStep(4)} className="btn-secondary flex-1 flex items-center justify-center gap-2">
                                         <ArrowLeft className="w-4 h-4" /> Back
                                     </button>
-                                    <button onClick={() => setStep(6)} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                                    <button onClick={() => setStep(6)} disabled={!formData.password || formData.password !== formData.confirmPassword} className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50">
                                         Review <ArrowRight className="w-4 h-4" />
                                     </button>
                                 </div>
