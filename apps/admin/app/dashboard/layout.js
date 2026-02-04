@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import {
     Shield, LayoutDashboard, Users, ShoppingCart, Coins, FileText, Settings, LogOut, Menu, X,
-    Bell
+    Bell, Clock
 } from 'lucide-react';
 
 export default function DashboardLayout({ children }) {
@@ -30,6 +30,7 @@ export default function DashboardLayout({ children }) {
 
     const navItems = [
         { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+        { href: '/dashboard/pending-approvals', icon: Clock, label: 'Pending Approvals' },
         { href: '/dashboard/partners', icon: Users, label: 'Partners' },
         { href: '/dashboard/customers', icon: Users, label: 'Customers' },
         { href: '/dashboard/services', icon: ShoppingCart, label: 'Services' },
@@ -86,8 +87,8 @@ export default function DashboardLayout({ children }) {
                                 href={item.href}
                                 onClick={() => setSidebarOpen(false)}
                                 className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${pathname === item.href
-                                        ? 'bg-primary-600 text-white'
-                                        : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                                    ? 'bg-primary-600 text-white'
+                                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                                     }`}
                             >
                                 <item.icon className="w-5 h-5" />
