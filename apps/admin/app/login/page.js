@@ -185,14 +185,7 @@ export default function LoginPage() {
                             </button>
                         </form>
 
-                        <div className="mt-8 pt-6 border-t-2 border-gray-100">
-                            <p className="text-xs text-gray-500 text-center mb-2">Default credentials for testing:</p>
-                            <div className="bg-slate-50 rounded-lg p-3 text-center">
-                                <p className="font-mono text-sm text-gray-700">
-                                    <span className="font-semibold">admin@onspot.one</span> / <span className="font-semibold">Admin@123</span>
-                                </p>
-                            </div>
-                        </div>
+
                     </div>
 
                     <p className="mt-6 text-center text-xs text-gray-500">

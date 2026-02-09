@@ -99,8 +99,8 @@ export default function RegisterPage() {
             if (!res.ok) throw new Error(data.error);
             setOtpSent(true);
         } catch (err) {
-            // For testing without backend: auto-success
-            console.log('Mock OTP sent to:', formData.email);
+            // For testing: Send OTP via email first
+            alert(`OTP sent to ${formData.email}\n\nMOCK OTP: 123456\n\nEnter this OTP in the next step.`);
             setOtpSent(true);
         } finally {
             setLoading(false);
@@ -176,9 +176,9 @@ export default function RegisterPage() {
         } catch (err) {
             // For testing without backend: generate mock partner ID
             if (err.message.includes('Server error') || err.message.includes('fetch')) {
-                const mockPartnerId = `ONSPOT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${formData.partnerType.charAt(0)}-${Math.floor(10000 + Math.random() * 90000)}`;
-                console.log('Mock registration - Partner ID:', mockPartnerId);
-                router.push(`/register/success?partnerId=${mockPartnerId}`);
+                // Mock registration success
+                const mockPartnerId = `PAR${Math.random().toString().substring(2, 8)}`;
+                router.push('/register/success?partnerId=' + mockPartnerId);
                 return;
             }
             setError(err.message || 'Registration failed. Please try again.');
