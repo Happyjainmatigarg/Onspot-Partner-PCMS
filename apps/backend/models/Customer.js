@@ -44,6 +44,8 @@ const customerSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    passwordResetToken: String,
+    passwordResetExpiry: Date,
     status: {
         type: String,
         enum: ['PENDING', 'APPROVED', 'REJECTED', 'ACTIVE'],

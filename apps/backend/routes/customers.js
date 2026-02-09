@@ -2,143 +2,56 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const Customer = require('../models/Customer');
-const Product = require('../models/Product');
 const Service = require('../models/Service');
-const Partner = require('../models/Partner');
-const { generateCustomerId, generateProductId, generateServiceId } = require('../utils/idGenerator');
-const { generateToken, authenticate } = require('../middleware/auth');
-const { createAuditLog, extractAuditInfo } = require('../services/audit');
-const { sendCustomerPendingEmail } = require('../services/email');
-const { SERVICE_PERCENTAGES } = require('../services/commission');
+const Product = require('../models/Product');
+const { authenticate } = require('../middleware/auth');
+const { generateToken } = require('../utils/jwt');
+const { createAuditLog, extractAuditInfo } = require('../utils/audit');
 
-// POST /api/customers/verify-partner
-router.post('/verify-partner', async (req, res) => {
-    try {
-        const { partnerId } = req.body;
-
-        if (!/^ONSPOT-\d{2}-\d{2}-\d{4}-[PGS]-[A-Z0-9]{5}$/.test(partnerId)) {
-            return res.status(400).json({
-                valid: false,
-                error: 'Invalid Partner ID format'
-            });
-        }
-
-        const partner = await Partner.findOne({ partnerId, status: 'ACTIVE' });
-
-        if (!partner) {
-            return res.status(404).json({
-                valid: false,
-                error: 'Partner not found or inactive'
-            });
-        }
-
-        res.json({
-            valid: true,
-            partner: {
-                partnerId: partner.partnerId,
-                applicantName: partner.applicantName,
-                city: partner.billingAddress.city,
-                partnerType: partner.partnerType
-            }
-        });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to verify partner' });
-    }
-});
-
-// POST /api/customers/calculate-service
-router.post('/calculate-service', async (req, res) => {
-    try {
-        const { deviceValue, serviceType } = req.body;
-
-        if (!deviceValue || !serviceType) {
-            return res.status(400).json({ error: 'Device value and service type required' });
-        }
-
-        if (deviceValue < 1000 || deviceValue > 1000000) {
-            return res.status(400).json({ error: 'Device value must be between ₹1,000 and ₹10,00,000' });
-        }
-
-        const servicePercentage = SERVICE_PERCENTAGES[serviceType];
-        if (!servicePercentage) {
-            return res.status(400).json({ error: 'Invalid service type' });
-        }
-
-        const serviceCost = deviceValue * (servicePercentage / 100);
-
-        res.json({
-            deviceValue,
-            serviceType,
-            servicePercentage,
-            serviceCost: Math.round(serviceCost * 100) / 100,
-            formattedCost: serviceCost.toLocaleString('en-IN', {
-                style: 'currency',
-                currency: 'INR'
-            })
-        });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to calculate service cost' });
-    }
-});
+// Helper function to generate customer ID
+function generateCustomerId(mobile) {
+    const timestamp = Date.now().toString().slice(-4);
+    return `CUST-${mobile}-${timestamp}`;
+}
 
 // POST /api/customers/register
 router.post('/register', async (req, res) => {
     try {
         const {
+            partnerId,
             customerName,
             mobile,
             email,
             address,
-            partnerId,
-            serviceType,
-            device,
             termsAccepted
         } = req.body;
 
-        // Validate terms acceptance
+        // Validation
+        if (!customerName || !mobile || !email || !address || !partnerId) {
+            return res.status(400).json({ error: 'All fields are required' });
+        }
+
         if (!termsAccepted) {
-            return res.status(400).json({ error: 'Terms and conditions must be accepted' });
+            return res.status(400).json({ error: 'You must accept the terms and conditions' });
         }
 
-        // Validate partner exists and is active
-        const partner = await Partner.findOne({ partnerId, status: 'ACTIVE' });
-        if (!partner) {
-            return res.status(400).json({ error: 'Invalid or inactive Partner ID' });
+        // Check if customer already exists
+        const existingCustomer = await Customer.findOne({
+            $or: [{ mobile }, { email: email.toLowerCase() }]
+        });
+
+        if (existingCustomer) {
+            return res.status(400).json({
+                error: existingCustomer.mobile === mobile
+                    ? 'Mobile number already registered'
+                    : 'Email already registered'
+            });
         }
 
-        // Validate device
-        if (device.purchaseValue < 1000 || device.purchaseValue > 1000000) {
-            return res.status(400).json({ error: 'Device value must be between ₹1,000 and ₹10,00,000' });
-        }
-
-        // Check serial number uniqueness
-        const serialExists = await Product.findOne({ serialNumber: device.serialNumber });
-        if (serialExists) {
-            return res.status(400).json({ error: 'Device with this serial number already registered' });
-        }
-
-        // Validate purchase date
-        const purchaseDate = new Date(device.purchaseDate);
-        const now = new Date();
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-        if (purchaseDate > now) {
-            return res.status(400).json({ error: 'Purchase date cannot be in the future' });
-        }
-        if (purchaseDate < thirtyDaysAgo) {
-            return res.status(400).json({ error: 'Purchase date cannot be more than 30 days old' });
-        }
-
-        // Generate IDs
+        // Generate customer ID
         const customerId = generateCustomerId(mobile);
-        const productId = generateProductId();
-        const serviceId = generateServiceId();
 
-        // Calculate service cost
-        const servicePercentage = SERVICE_PERCENTAGES[serviceType];
-        const serviceCost = device.purchaseValue * (servicePercentage / 100);
-
-        // Create customer
+        // Create new customer
         const customer = new Customer({
             customerId,
             partnerId,
@@ -146,81 +59,27 @@ router.post('/register', async (req, res) => {
             mobile,
             email: email.toLowerCase(),
             address,
-            status: 'PENDING',
-            termsAccepted: true,
+            termsAccepted,
             termsAcceptedAt: new Date(),
-            passwordSet: false
-        });
-        await customer.save();
-
-        // Create product
-        const product = new Product({
-            productId,
-            customerId,
-            partnerId,
-            productType: device.productType,
-            brand: device.brand,
-            model: device.model,
-            serialNumber: device.serialNumber,
-            purchaseValue: device.purchaseValue,
-            purchaseDate: purchaseDate
-        });
-        await product.save();
-
-        // Create service (PENDING - commission calculated on approval)
-        const service = new Service({
-            serviceId,
-            customerId,
-            partnerId,
-            productId,
-            serviceType,
-            servicePercentage,
-            serviceCost,
             status: 'PENDING'
         });
-        await service.save();
 
-        // Send notification email to accounts
-        await sendCustomerPendingEmail(customer, product, service, partner);
+        await customer.save();
 
-        // Audit logs
         await createAuditLog({
-            action: 'CREATE',
+            action: 'CUSTOMER_REGISTER',
             entity: 'CUSTOMER',
             entityId: customerId,
             performedBy: email,
             performedByRole: 'CUSTOMER',
-            newData: customer.toObject(),
             ...extractAuditInfo(req),
-            details: 'Customer registration submitted'
-        });
-
-        await createAuditLog({
-            action: 'CREATE',
-            entity: 'PRODUCT',
-            entityId: productId,
-            performedBy: email,
-            performedByRole: 'CUSTOMER',
-            newData: product.toObject(),
-            ...extractAuditInfo(req)
-        });
-
-        await createAuditLog({
-            action: 'CREATE',
-            entity: 'SERVICE',
-            entityId: serviceId,
-            performedBy: email,
-            performedByRole: 'CUSTOMER',
-            newData: service.toObject(),
-            ...extractAuditInfo(req)
+            details: `New customer registration for ${customerName}`
         });
 
         res.status(201).json({
             success: true,
             customerId,
-            serviceId,
-            message: 'Registration submitted successfully. Pending admin approval.',
-            serviceCost
+            message: 'Registration successful. Your account is pending approval.'
         });
     } catch (error) {
         console.error('Customer registration error:', error);
@@ -233,54 +92,39 @@ router.post('/login', async (req, res) => {
     try {
         const { customerId, password } = req.body;
 
-        if (!/^CUST-[6-9]\d{9}-[A-Z0-9]{4}$/.test(customerId)) {
-            return res.status(400).json({ error: 'Invalid Customer ID format' });
+        if (!customerId || !password) {
+            return res.status(400).json({ error: 'Customer ID and password are required' });
         }
 
         const customer = await Customer.findOne({ customerId });
         if (!customer) {
-            return res.status(404).json({ error: 'Customer not found' });
+            return res.status(401).json({ error: 'Invalid customer ID or password' });
         }
 
-        // Status checks
+        // Check if account is approved
         if (customer.status === 'PENDING') {
-            return res.status(403).json({
-                error: 'UNDER_REVIEW',
-                message: 'Your registration is under review. Please wait for approval.'
-            });
+            return res.status(403).json({ error: 'Account pending approval' });
         }
 
         if (customer.status === 'REJECTED') {
-            return res.status(403).json({
-                error: 'REJECTED',
-                message: `Registration rejected: ${customer.rejectionReason || 'Please contact support.'}`
-            });
+            return res.status(403).json({ error: 'Account has been rejected' });
         }
 
-        if (!customer.passwordSet) {
+        // Check if password is set
+        if (!customer.passwordSet || !customer.password) {
             return res.status(403).json({
                 error: 'PASSWORD_NOT_SET',
-                message: 'Please set your password first.',
-                customerId,
                 customerName: customer.customerName
             });
         }
 
-        const isMatch = await bcrypt.compare(password, customer.password);
-        if (!isMatch) {
-            return res.status(401).json({ error: 'Invalid password' });
+        // Verify password
+        const isValidPassword = await bcrypt.compare(password, customer.password);
+        if (!isValidPassword) {
+            return res.status(401).json({ error: 'Invalid customer ID or password' });
         }
 
-        // Audit log
-        await createAuditLog({
-            action: 'LOGIN',
-            entity: 'CUSTOMER',
-            entityId: customerId,
-            performedBy: customer.email,
-            performedByRole: 'CUSTOMER',
-            ...extractAuditInfo(req)
-        });
-
+        // Generate JWT token
         const token = generateToken({
             id: customer._id,
             customerId: customer.customerId,
@@ -289,18 +133,29 @@ router.post('/login', async (req, res) => {
             role: 'CUSTOMER'
         });
 
+        await createAuditLog({
+            action: 'CUSTOMER_LOGIN',
+            entity: 'CUSTOMER',
+            entityId: customerId,
+            performedBy: customer.email,
+            performedByRole: 'CUSTOMER',
+            ...extractAuditInfo(req),
+            details: 'Customer login successful'
+        });
+
         res.json({
             success: true,
             token,
             customer: {
                 customerId: customer.customerId,
                 customerName: customer.customerName,
-                email: customer.email
+                email: customer.email,
+                mobile: customer.mobile
             }
         });
     } catch (error) {
         console.error('Customer login error:', error);
-        res.status(500).json({ error: 'Login failed' });
+        res.status(500).json({ error: 'Login failed. Please try again.' });
     }
 });
 
@@ -345,6 +200,117 @@ router.post('/set-password', async (req, res) => {
         res.json({ success: true, token, message: 'Password set successfully' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to set password' });
+    }
+});
+
+// POST /api/customers/forgot-password
+router.post('/forgot-password', async (req, res) => {
+    try {
+        const { customerId, contactMethod, mobile, email } = req.body;
+
+        const customer = await Customer.findOne({ customerId });
+        if (!customer) {
+            return res.status(404).json({ error: 'Customer not found' });
+        }
+
+        // Verify contact method matches
+        if (contactMethod === 'mobile' && customer.mobile !== mobile) {
+            return res.status(400).json({ error: 'Mobile number does not match records' });
+        }
+        if (contactMethod === 'email' && customer.email.toLowerCase() !== email.toLowerCase()) {
+            return res.status(400).json({ error: 'Email does not match records' });
+        }
+
+        // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        customer.passwordResetToken = otp;
+        customer.passwordResetExpiry = otpExpiry;
+        await customer.save();
+
+        // Send OTP via OTP service
+        try {
+            const { sendOTP } = require('../services/otp');
+            await sendOTP({
+                identifier: contactMethod === 'mobile' ? customer.mobile : customer.email,
+                type: contactMethod === 'mobile' ? 'SMS' : 'EMAIL',
+                otp,
+                purpose: 'PASSWORD_RESET'
+            });
+        } catch (otpError) {
+            console.error('OTP sending failed:', otpError);
+            // Continue anyway - OTP is saved in DB
+        }
+
+        await createAuditLog({
+            action: 'PASSWORD_RESET_REQUEST',
+            entity: 'CUSTOMER',
+            entityId: customerId,
+            performedBy: customer.email,
+            performedByRole: 'CUSTOMER',
+            ...extractAuditInfo(req),
+            details: `Password reset requested via ${contactMethod}`
+        });
+
+        res.json({
+            success: true,
+            message: `Verification code sent to your ${contactMethod}`
+        });
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({ error: 'Failed to process password reset request' });
+    }
+});
+
+// POST /api/customers/reset-password
+router.post('/reset-password', async (req, res) => {
+    try {
+        const { customerId, otp, newPassword } = req.body;
+
+        const customer = await Customer.findOne({ customerId });
+        if (!customer) {
+            return res.status(404).json({ error: 'Customer not found' });
+        }
+
+        // Verify OTP
+        if (!customer.passwordResetToken || customer.passwordResetToken !== otp) {
+            return res.status(400).json({ error: 'Invalid verification code' });
+        }
+
+        if (new Date() > customer.passwordResetExpiry) {
+            return res.status(400).json({ error: 'Verification code has expired' });
+        }
+
+        // Validate new password
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$%&*])[A-Za-z\d@#$%&*]{8,}$/;
+        if (!passwordRegex.test(newPassword)) {
+            return res.status(400).json({
+                error: 'Password must be at least 8 characters with uppercase, lowercase, number, and special character'
+            });
+        }
+
+        // Update password
+        customer.password = await bcrypt.hash(newPassword, 10);
+        customer.passwordSet = true;
+        customer.passwordResetToken = undefined;
+        customer.passwordResetExpiry = undefined;
+        await customer.save();
+
+        await createAuditLog({
+            action: 'PASSWORD_RESET',
+            entity: 'CUSTOMER',
+            entityId: customerId,
+            performedBy: customer.email,
+            performedByRole: 'CUSTOMER',
+            ...extractAuditInfo(req),
+            details: 'Password reset completed successfully'
+        });
+
+        res.json({ success: true, message: 'Password reset successfully' });
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({ error: 'Failed to reset password' });
     }
 });
 

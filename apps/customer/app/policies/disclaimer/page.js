@@ -91,7 +91,7 @@ export default function Disclaimer() {
 
             <section className="mb-8">
                 <h2 className="text-xl font-semibold text-primary-600 mt-8 mb-4">8. Governing Law</h2>
-                <p>This disclaimer is governed by the laws of India. Disputes shall be subject to the exclusive jurisdiction of courts in Delhi NCR.</p>
+                <p>This disclaimer is governed by the laws of India. Disputes shall be subject to the exclusive jurisdiction of courts in Jind, India.</p>
             </section>
         </article>
     );

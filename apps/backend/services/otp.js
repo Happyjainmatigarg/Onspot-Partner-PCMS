@@ -1,34 +1,52 @@
 // OTP Service - Open Source Multi-Channel Authentication
 // Supports: Email (nodemailer), SMS (TextBelt free API), Console (dev mode)
 
-const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+const Redis = require('ioredis');
+const { transporter } = require('./email');
 
-// In-memory OTP store (use Redis in production)
-const otpStore = new Map();
+// Initialize Redis client
+// We use lazyConnect to avoid immediate connection errors crashing the script if handled manually, 
+// strictly speaking ioredis handles reconnection, but for fallback logic we need to know state.
+const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+    lazyConnect: true,
+    retryStrategy: (times) => {
+        if (process.env.NODE_ENV !== 'production' && times > 3) {
+            return null; // Stop retrying in dev after 3 attempts to allow fallback
+        }
+        return Math.min(times * 50, 2000);
+    }
+});
+
+let redisAvailable = false;
+// In-memory fallback
+const memoryStore = new Map();
+
+redis.connect().then(() => {
+    console.log('[Redis] Connected to Redis for OTP storage');
+    redisAvailable = true;
+}).catch((err) => {
+    console.error('[Redis] Connection failed, using in-memory store (Dev Mode):', err.message);
+    redisAvailable = false;
+});
+
+redis.on('error', (err) => {
+    // Suppress heavy logging of connection refused in dev
+    if (process.env.NODE_ENV === 'production') {
+        console.error('[Redis] Error:', err);
+    }
+});
 
 const OTP_EXPIRY_MINUTES = parseInt(process.env.OTP_EXPIRY_MINUTES || '10');
 const MAX_OTP_ATTEMPTS = 3;
 const MAX_SEND_ATTEMPTS = 5;
-
-// Email transporter configuration
-const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.EMAIL_PORT || '587'),
-    secure: false,
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    },
-    tls: {
-        rejectUnauthorized: false
-    }
-});
+const RATE_LIMIT_WINDOW = 3600; // 1 hour in seconds
 
 /**
- * Generate 6-digit OTP
+ * Generate secure 6-digit OTP
  */
 function generateOTP() {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    return crypto.randomInt(100000, 999999).toString();
 }
 
 /**
@@ -87,7 +105,6 @@ async function sendEmailOTP(email, otp) {
 
 /**
  * Send OTP via SMS - DISABLED
- * SMS OTP is disabled. Use Email OTP instead.
  */
 async function sendSMSOTP(mobile, otp) {
     console.log('[OTP] SMS OTP is disabled. Use Email OTP instead.');
@@ -95,8 +112,7 @@ async function sendSMSOTP(mobile, otp) {
 }
 
 /**
- * Send OTP via WhatsApp-style notification (using console for demo)
- * For production, integrate with WhatsApp Business API
+ * Send OTP via WhatsApp (Demo)
  */
 function sendWhatsAppOTP(mobile, otp) {
     console.log('');
@@ -112,7 +128,7 @@ function sendWhatsAppOTP(mobile, otp) {
 }
 
 /**
- * Send OTP via console (for development/testing)
+ * Send OTP via console (Development)
  */
 function sendConsoleOTP(identifier, otp) {
     console.log('');
@@ -131,62 +147,72 @@ function sendConsoleOTP(identifier, otp) {
 
 /**
  * Send OTP to recipient
- * @param {string} identifier - Email address or mobile number
- * @param {string} method - 'email', 'sms', 'whatsapp', or 'auto' (default)
  */
 async function sendOTP(identifier, method = 'auto') {
     const key = `otp:${identifier}`;
-    const existing = otpStore.get(key);
+    const rateLimitKey = `otp_rate:${identifier}`;
 
-    // Rate limiting check
-    if (existing && existing.sendAttempts >= MAX_SEND_ATTEMPTS) {
-        const timeSinceFirst = Date.now() - existing.firstSendAt;
-        if (timeSinceFirst < OTP_EXPIRY_MINUTES * 60 * 1000) {
-            return {
-                success: false,
-                error: 'MAX_SEND_ATTEMPTS',
-                message: `Maximum ${MAX_SEND_ATTEMPTS} OTP requests reached. Please wait ${OTP_EXPIRY_MINUTES} minutes.`,
-                retryAfter: OTP_EXPIRY_MINUTES * 60 - Math.floor(timeSinceFirst / 1000)
-            };
+    let attempts = 0;
+
+    // Rate Limiting
+    if (redisAvailable) {
+        attempts = await redis.get(rateLimitKey);
+    } else {
+        // Simple in-memory rate limit check (optional, or simplify for dev)
+        // For simplicity in dev fallback, we might skip strict rate limiting or use memory map
+    }
+
+    if (attempts && parseInt(attempts) >= MAX_SEND_ATTEMPTS) {
+        // Calculate TTL
+        let ttl = 60 * 60; // default
+        if (redisAvailable) {
+            ttl = await redis.ttl(rateLimitKey);
         }
+        return {
+            success: false,
+            error: 'MAX_SEND_ATTEMPTS',
+            message: `Maximum ${MAX_SEND_ATTEMPTS} OTP requests reached. Please wait.`,
+            retryAfter: ttl
+        };
     }
 
     const code = generateOTP();
-    const now = Date.now();
 
     // Store OTP
-    otpStore.set(key, {
-        code,
-        attempts: 0,
-        sendAttempts: existing ? existing.sendAttempts + 1 : 1,
-        firstSendAt: existing?.firstSendAt || now,
-        createdAt: now,
-        expiresAt: now + (OTP_EXPIRY_MINUTES * 60 * 1000)
-    });
+    if (redisAvailable) {
+        await redis.set(key, JSON.stringify({
+            code,
+            attempts: 0
+        }), 'EX', OTP_EXPIRY_MINUTES * 60);
 
-    // Check if identifier is an email
-    const isEmail = identifier.includes('@');
-
-    // Force email method (SMS is disabled)
-    if (method === 'auto' || method === 'sms') {
-        method = 'email';
+        if (!attempts) {
+            await redis.set(rateLimitKey, 1, 'EX', RATE_LIMIT_WINDOW);
+        } else {
+            await redis.incr(rateLimitKey);
+        }
+    } else {
+        // In-memory store
+        memoryStore.set(key, {
+            code,
+            attempts: 0,
+            expiresAt: Date.now() + (OTP_EXPIRY_MINUTES * 60 * 1000)
+        });
+        // Cleanup memory store occasionally would be needed, but for dev it handles itself on restart
     }
 
-    // Always log to console in development
+    const isEmail = identifier.includes('@');
+    if (method === 'auto' || method === 'sms') method = 'email'; // Force email
+
     if (process.env.NODE_ENV !== 'production') {
         sendConsoleOTP(identifier, code);
     }
 
-    // Send based on method
     let sendResult = { success: true };
 
     if (method === 'email' && isEmail && process.env.EMAIL_USER) {
         sendResult = await sendEmailOTP(identifier, code);
     } else if (method === 'sms' && !isEmail) {
-        // Try SMS first
         sendResult = await sendSMSOTP(identifier, code);
-
-        // If SMS failed (quota exceeded), use console mode
         if (!sendResult.success) {
             console.log('[OTP] SMS failed, using console mode');
             sendResult = sendConsoleOTP(identifier, code);
@@ -194,48 +220,70 @@ async function sendOTP(identifier, method = 'auto') {
     } else if (method === 'whatsapp' && !isEmail) {
         sendResult = sendWhatsAppOTP(identifier, code);
     } else {
-        // Fallback to console
         sendResult = sendConsoleOTP(identifier, code);
     }
 
-    // Return appropriate message
+    // Special Dev Handling: If email failed but we are in dev, return success with warning and the OTP
+    if (!sendResult.success && process.env.NODE_ENV !== 'production') {
+        return {
+            success: true,
+            method: 'console',
+            message: 'Email failed (missing creds?), but OTP generated for testing.',
+            warning: sendResult.error,
+            devOTP: code
+        };
+    }
+
+    if (!sendResult.success) {
+        return sendResult;
+    }
+
     let message = '';
     switch (sendResult.method) {
-        case 'email':
-            message = 'OTP sent to your email address';
-            break;
-        case 'sms':
-            message = 'OTP sent via SMS to your mobile';
-            break;
-        case 'whatsapp':
-            message = 'OTP sent via WhatsApp';
-            break;
-        default:
-            message = 'OTP generated (check server logs in dev mode)';
+        case 'email': message = 'OTP sent to your email address'; break;
+        case 'sms': message = 'OTP sent via SMS to your mobile'; break;
+        case 'whatsapp': message = 'OTP sent via WhatsApp'; break;
+        default: message = 'OTP generated (check server logs in dev mode)';
     }
 
     return {
         success: true,
         method: sendResult.method,
         message: message,
-        // DEV ONLY: Include OTP in response for testing
         ...(process.env.NODE_ENV !== 'production' && { devOTP: code })
     };
 }
 
 /**
  * Verify OTP
- * @param {string} identifier - Email or mobile that received the OTP
- * @param {string} code - OTP code to verify
  */
-function verifyOTP(identifier, code) {
+async function verifyOTP(identifier, code) {
     const key = `otp:${identifier}`;
-    const stored = otpStore.get(key);
+
+    let storedData = null;
+    if (redisAvailable) {
+        storedData = await redis.get(key);
+    } else {
+        const data = memoryStore.get(key);
+        if (data) {
+            // Check expiry for in-memory
+            if (Date.now() > data.expiresAt) {
+                memoryStore.delete(key);
+                storedData = null;
+            } else {
+                storedData = JSON.stringify(data);
+            }
+        }
+    }
+
+    console.log(`[OTP] Verifying for ${identifier}. Code: ${code}`);
 
     // Allow test OTP "123456" in development
     if (process.env.NODE_ENV !== 'production' && code === '123456') {
-        console.log('[OTP] Test OTP accepted for:', identifier);
-        otpStore.delete(key);
+        if (storedData) {
+            if (redisAvailable) await redis.del(key);
+            else memoryStore.delete(key);
+        }
         return {
             success: true,
             verified: true,
@@ -243,7 +291,7 @@ function verifyOTP(identifier, code) {
         };
     }
 
-    if (!stored) {
+    if (!storedData) {
         return {
             success: false,
             verified: false,
@@ -252,20 +300,11 @@ function verifyOTP(identifier, code) {
         };
     }
 
-    // Check expiry
-    if (Date.now() > stored.expiresAt) {
-        otpStore.delete(key);
-        return {
-            success: false,
-            verified: false,
-            error: 'OTP_EXPIRED',
-            message: 'OTP has expired. Please request a new one.'
-        };
-    }
+    const otpData = JSON.parse(storedData);
 
-    // Check max attempts
-    if (stored.attempts >= MAX_OTP_ATTEMPTS) {
-        otpStore.delete(key);
+    if (otpData.attempts >= MAX_OTP_ATTEMPTS) {
+        if (redisAvailable) await redis.del(key);
+        else memoryStore.delete(key);
         return {
             success: false,
             verified: false,
@@ -274,20 +313,30 @@ function verifyOTP(identifier, code) {
         };
     }
 
-    // Verify code
-    if (stored.code !== code) {
-        stored.attempts += 1;
+    if (otpData.code !== code) {
+        otpData.attempts += 1;
+        if (redisAvailable) {
+            await redis.set(key, JSON.stringify(otpData), 'KEEPTTL');
+        } else {
+            // Update memory
+            const existing = memoryStore.get(key);
+            if (existing) {
+                existing.attempts = otpData.attempts;
+                memoryStore.set(key, existing);
+            }
+        }
+
         return {
             success: false,
             verified: false,
             error: 'INVALID_OTP',
             message: 'Invalid OTP. Please try again.',
-            remainingAttempts: MAX_OTP_ATTEMPTS - stored.attempts
+            remainingAttempts: MAX_OTP_ATTEMPTS - otpData.attempts
         };
     }
 
-    // Success - delete the OTP
-    otpStore.delete(key);
+    if (redisAvailable) await redis.del(key);
+    else memoryStore.delete(key);
 
     return {
         success: true,
@@ -296,32 +345,11 @@ function verifyOTP(identifier, code) {
     };
 }
 
-/**
- * Clean up expired OTPs (run periodically)
- */
-function cleanupExpiredOTPs() {
-    const now = Date.now();
-    let cleaned = 0;
-    for (const [key, value] of otpStore.entries()) {
-        if (now > value.expiresAt) {
-            otpStore.delete(key);
-            cleaned++;
-        }
-    }
-    if (cleaned > 0) {
-        console.log(`[OTP] Cleaned up ${cleaned} expired OTPs`);
-    }
-}
-
-// Run cleanup every 5 minutes
-setInterval(cleanupExpiredOTPs, 5 * 60 * 1000);
-
 module.exports = {
     sendOTP,
     verifyOTP,
     generateOTP,
     sendEmailOTP,
     sendSMSOTP,
-    sendWhatsAppOTP,
-    sendConsoleOTP
+    sendWhatsAppOTP
 };

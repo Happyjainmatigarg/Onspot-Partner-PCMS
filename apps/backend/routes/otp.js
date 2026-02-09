@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { sendOTP, verifyOTP } = require('../services/otp');
+const Partner = require('../models/Partner');
 
 // POST /api/otp/send
 // Supports: email, sms, whatsapp, auto (default)
@@ -17,7 +18,7 @@ router.post('/send', async (req, res) => {
 
         if (email) {
             // Validate email format
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
                 return res.status(400).json({ error: 'Invalid email format' });
             }
             identifier = email.toLowerCase();
@@ -29,6 +30,33 @@ router.post('/send', async (req, res) => {
             identifier = mobile;
         }
 
+        // Check if already registered
+        const existingPartner = await Partner.findOne({
+            $or: [
+                { email: email ? email.toLowerCase() : null },
+                { mobile: mobile }
+            ]
+        });
+
+        if (existingPartner) {
+            let message = 'This mobile number or email is already registered. Please login.';
+
+            if (existingPartner.status === 'PENDING') {
+                message = 'Your application is currently pending approval. Please wait for admin action.';
+            } else if (existingPartner.status === 'REJECTED') {
+                message = 'Your previous application was rejected. Please contact support.';
+            } else if (existingPartner.status === 'SUSPENDED') {
+                message = 'Your account has been suspended. Please contact support.';
+            }
+
+            return res.status(409).json({
+                error: 'Account already exists',
+                message: message,
+                status: existingPartner.status,
+                exists: true
+            });
+        }
+
         // Valid methods: email, sms, whatsapp, auto
         const validMethods = ['email', 'sms', 'whatsapp', 'auto'];
         const selectedMethod = validMethods.includes(method) ? method : 'auto';
@@ -36,7 +64,9 @@ router.post('/send', async (req, res) => {
         const result = await sendOTP(identifier, selectedMethod);
 
         if (!result.success) {
-            return res.status(429).json(result);
+            // Check for specific error types to return appropriate status codes
+            const status = result.error === 'MAX_SEND_ATTEMPTS' ? 429 : 500;
+            return res.status(status).json(result);
         }
 
         res.json({
@@ -66,7 +96,7 @@ router.post('/verify', async (req, res) => {
             return res.status(400).json({ error: 'Identifier (mobile/email) and code are required' });
         }
 
-        const result = verifyOTP(identifier, verificationCode);
+        const result = await verifyOTP(identifier, verificationCode);
 
         if (!result.success) {
             return res.status(400).json(result);

@@ -216,6 +216,53 @@ router.get('/partners/:id', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS', '
     }
 });
 
+// PUT /api/admin/partners/:id
+router.put('/partners/:id', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS'), async (req, res) => {
+    try {
+        const { firm_name, contact_person, mobile, email, city, address, gst_number } = req.body;
+
+        const partner = await Partner.findOne({ partnerId: req.params.id });
+        if (!partner) {
+            return res.status(404).json({ error: 'Partner not found' });
+        }
+
+        const oldData = partner.toObject();
+
+        if (firm_name) partner.firm_name = firm_name;
+        if (contact_person) partner.contact_person = contact_person;
+        if (mobile) partner.mobile = mobile;
+        if (email) partner.email = email.toLowerCase();
+        if (gst_number) partner.gst_number = gst_number;
+
+        if (city || address) {
+            partner.billingAddress = {
+                ...partner.billingAddress,
+                ...(city && { city }),
+                ...(address && { address })
+            };
+        }
+
+        await partner.save();
+
+        await createAuditLog({
+            action: 'UPDATE',
+            entity: 'PARTNER',
+            entityId: partner.partnerId,
+            performedBy: req.user.email,
+            performedByRole: req.user.role,
+            oldData: oldData,
+            newData: partner.toObject(),
+            ...extractAuditInfo(req),
+            details: 'Partner details updated by admin'
+        });
+
+        res.json({ success: true, partner });
+    } catch (error) {
+        console.error('Update partner error:', error);
+        res.status(500).json({ error: 'Failed to update partner details' });
+    }
+});
+
 // PATCH /api/admin/partners/:id/status
 router.patch('/partners/:id/status', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS'), async (req, res) => {
     try {
@@ -486,6 +533,41 @@ router.get('/services', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS', 'OPER
         res.json({ services, total, page: parseInt(page), limit: parseInt(limit) });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch services' });
+    }
+});
+
+// PUT /api/admin/services/:id
+router.put('/services/:id', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS', 'OPERATIONS'), async (req, res) => {
+    try {
+        const { status, remarks } = req.body;
+
+        const service = await Service.findOne({ serviceId: req.params.id });
+        if (!service) {
+            return res.status(404).json({ error: 'Service not found' });
+        }
+
+        const oldData = service.toObject();
+
+        if (status) service.status = status;
+        // You might want to update other fields too
+
+        await service.save();
+
+        await createAuditLog({
+            action: 'UPDATE',
+            entity: 'SERVICE',
+            entityId: service.serviceId,
+            performedBy: req.user.email,
+            performedByRole: req.user.role,
+            oldData: oldData,
+            newData: service.toObject(),
+            ...extractAuditInfo(req),
+            details: `Service updated. Remarks: ${remarks || 'None'}`
+        });
+
+        res.json({ success: true, service });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update service' });
     }
 });
 

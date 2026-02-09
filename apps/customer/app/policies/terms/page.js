@@ -92,7 +92,7 @@ export default function TermsConditions() {
 
             <section className="mb-8">
                 <h2 className="text-xl font-semibold text-primary-600 mt-8 mb-4">10. Governing Law & Jurisdiction</h2>
-                <p>These terms are governed by the laws of India. Any disputes shall be subject to the exclusive jurisdiction of courts in <strong>Delhi NCR, India</strong>.</p>
+                <p>These terms are governed by the laws of India. Any disputes shall be subject to the exclusive jurisdiction of courts in <strong>Jind, India</strong>.</p>
             </section>
 
             <section className="mb-8">
