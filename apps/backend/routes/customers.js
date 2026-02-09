@@ -14,6 +14,48 @@ function generateCustomerId(mobile) {
     return `CUST-${mobile}-${timestamp}`;
 }
 
+// POST /api/customers/verify-partner
+router.post('/verify-partner', async (req, res) => {
+    try {
+        const { partnerId } = req.body;
+        const Partner = require('../models/Partner');
+        const partner = await Partner.findOne({ partnerId, status: 'ACTIVE' });
+
+        if (!partner) {
+            return res.json({ valid: false, error: 'Invalid or inactive Partner ID' });
+        }
+
+        res.json({
+            valid: true,
+            partner: {
+                partnerId: partner.partnerId,
+                applicantName: partner.applicantName,
+                city: partner.city
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Verification failed' });
+    }
+});
+
+// POST /api/customers/calculate-service
+router.post('/calculate-service', async (req, res) => {
+    try {
+        const { deviceValue, serviceType } = req.body;
+        const percentages = { ESS: 8, EPS: 15, CDC: 20 };
+        const percentage = percentages[serviceType] || 15;
+        const serviceCost = Math.round((deviceValue * percentage) / 100);
+
+        res.json({
+            serviceCost,
+            servicePercentage: percentage,
+            deviceValue
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Calculation failed' });
+    }
+});
+
 // POST /api/customers/register
 router.post('/register', async (req, res) => {
     try {
@@ -23,12 +65,18 @@ router.post('/register', async (req, res) => {
             mobile,
             email,
             address,
+            device,
+            serviceType,
             termsAccepted
         } = req.body;
 
         // Validation
         if (!customerName || !mobile || !email || !address || !partnerId) {
-            return res.status(400).json({ error: 'All fields are required' });
+            return res.status(400).json({ error: 'All customer fields are required' });
+        }
+
+        if (!device || !serviceType) {
+            return res.status(400).json({ error: 'Device and service information required' });
         }
 
         if (!termsAccepted) {
@@ -66,19 +114,43 @@ router.post('/register', async (req, res) => {
 
         await customer.save();
 
+        // Create service record
+        const percentages = { ESS: 8, EPS: 15, CDC: 20 };
+        const percentage = percentages[serviceType] || 15;
+        const serviceCost = Math.round((parseFloat(device.purchaseValue) * percentage) / 100);
+
+        const serviceId = `SRV-${customerId}-${Date.now().toString().slice(-6)}`;
+        const service = new Service({
+            serviceId,
+            customerId,
+            partnerId,
+            productType: device.productType,
+            brand: device.brand,
+            model: device.model,
+            serialNumber: device.serialNumber,
+            purchaseValue: parseFloat(device.purchaseValue),
+            purchaseDate: new Date(device.purchaseDate),
+            serviceType,
+            serviceCost,
+            status: 'PENDING'
+        });
+
+        await service.save();
+
         await createAuditLog({
-            action: 'CUSTOMER_REGISTER',
+            action: 'CUSTOMER_SERVICE_REGISTER',
             entity: 'CUSTOMER',
             entityId: customerId,
             performedBy: email,
             performedByRole: 'CUSTOMER',
             ...extractAuditInfo(req),
-            details: `New customer registration for ${customerName}`
+            details: `Customer+Service registration: ${customerName}, ${device.brand} ${device.model}, ${serviceType}`
         });
 
         res.status(201).json({
             success: true,
             customerId,
+            serviceId,
             message: 'Registration successful. Your account is pending approval.'
         });
     } catch (error) {
