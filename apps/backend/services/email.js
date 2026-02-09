@@ -31,6 +31,7 @@ const COMPANY_INFO = {
   brandName: 'OnSpot™',
   supportEmail: 'support@onspot.one',
   partnerEmail: 'partner@onspot.one',
+  customerEmail: 'customer@onspot.one',
   accountsEmail: 'accounts@onspot.one',
   // Partner Portal Theme Colors
   primaryColor: '#0B2545',      // Dark Navy Blue
@@ -40,16 +41,31 @@ const COMPANY_INFO = {
   bgColor: '#F8FAFC'            // Light Background
 };
 
-// Company logo URL (hosted or base64)
-const LOGO_URL = process.env.COMPANY_LOGO_URL || 'https://partner.onspot.one/logo.png';
+// Company logo URL (Ccommerce Ecosystem logo)
+const COMPANY_LOGO_URL = process.env.COMPANY_LOGO_URL || 'https://partner.onspot.one/logo.png';
+// OnSpot brand logo URL
+const ONSPOT_LOGO_URL = process.env.ONSPOT_LOGO_URL || 'https://customers.onspot.one/logo.png';
 
 /**
- * Generate Partner Portal themed email header
+ * Generate Partner Portal themed email header (Company Logo)
  */
 function getEmailHeader(title) {
   return `
     <div style="background: linear-gradient(135deg, ${COMPANY_INFO.primaryColor} 0%, ${COMPANY_INFO.secondaryColor} 100%); padding: 30px; text-align: center;">
-      <img src="${LOGO_URL}" alt="${COMPANY_INFO.brandName}" style="height: 60px; width: auto; margin-bottom: 15px; background: white; padding: 8px; border-radius: 8px;" />
+      <img src="${COMPANY_LOGO_URL}" alt="${COMPANY_INFO.legalName}" style="height: 60px; width: auto; margin-bottom: 15px; background: white; padding: 8px; border-radius: 8px;" />
+      <h1 style="color: white; margin: 0; font-size: 24px;">${title}</h1>
+      <p style="color: ${COMPANY_INFO.lightColor}; margin: 5px 0 0 0; font-size: 14px;">${COMPANY_INFO.legalName}</p>
+    </div>
+  `;
+}
+
+/**
+ * Generate Customer Portal themed email header (OnSpot Logo)
+ */
+function getCustomerEmailHeader(title) {
+  return `
+    <div style="background: linear-gradient(135deg, ${COMPANY_INFO.primaryColor} 0%, ${COMPANY_INFO.secondaryColor} 100%); padding: 30px; text-align: center;">
+      <img src="${ONSPOT_LOGO_URL}" alt="${COMPANY_INFO.brandName}" style="height: 60px; width: auto; margin-bottom: 15px; background: white; padding: 8px; border-radius: 8px;" />
       <h1 style="color: white; margin: 0; font-size: 24px;">${title}</h1>
       <p style="color: ${COMPANY_INFO.lightColor}; margin: 5px 0 0 0; font-size: 14px;">${COMPANY_INFO.legalName}</p>
     </div>
@@ -261,12 +277,12 @@ async function sendCustomerPendingEmail(customer, product, service, partner) {
  */
 async function sendCustomerApprovalEmail(customer, service) {
   const mailOptions = {
-    from: `"${COMPANY_INFO.brandName}" <${COMPANY_INFO.partnerEmail}>`,
+    from: `"${COMPANY_INFO.brandName}" <${COMPANY_INFO.customerEmail}>`,
     to: customer.email,
     subject: `✅ Your ${COMPANY_INFO.brandName} Service is Now Active!`,
     html: `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-        ${getEmailHeader('✅ Service Activated!')}
+        ${getCustomerEmailHeader('✅ Service Activated!')}
         
         <div style="padding: 30px; background: ${COMPANY_INFO.bgColor};">
           <h2 style="color: ${COMPANY_INFO.primaryColor};">Welcome to ${COMPANY_INFO.brandName}!</h2>
