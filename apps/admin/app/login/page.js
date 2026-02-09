@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Shield, Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import Image from 'next/image';
 
 export default function LoginPage() {
     const router = useRouter();
@@ -53,32 +54,36 @@ export default function LoginPage() {
         <div className="min-h-screen flex">
             {/* Left Panel - Branding */}
             <div
-                className="hidden lg:flex lg:w-1/2 relative overflow-hidden"
-                style={{
-                    background: 'linear-gradient(135deg, #0B2545 0%, #134074 100%)'
-                }}
+                className="hidden lg:flex lg:w-1/2 relative overflow-hidden gradient-primary"
             >
                 <div className="absolute inset-0 flex flex-col justify-center px-16 text-white">
                     <div className="mb-8">
-                        <img src="/logo.png" alt="OnSpot - Admin Portal" className="h-14 w-auto" />
+                        <Image
+                            src="/logo.png"
+                            alt="OnSpot - Admin Portal"
+                            width={200}
+                            height={56}
+                            className="h-14 w-auto bg-white/95 p-2 rounded-lg"
+                            priority
+                        />
                     </div>
                     <h1 className="text-5xl font-bold mb-6 leading-tight">
                         Admin<br />Dashboard
                     </h1>
-                    <p className="text-xl text-blue-100 max-w-md leading-relaxed mb-8">
+                    <p className="text-xl text-white/90 max-w-md leading-relaxed mb-8">
                         Manage the entire OnSpot™ partner ecosystem from one powerful platform.
                     </p>
-                    <div className="space-y-4 text-blue-100">
+                    <div className="space-y-4 text-white/80">
                         <div className="flex items-center gap-3">
-                            <div className="w-1.5 h-1.5 bg-blue-300 rounded-full"></div>
+                            <div className="w-1.5 h-1.5 bg-white/60 rounded-full"></div>
                             <span>Partner & Customer Management</span>
                         </div>
                         <div className="flex items-center gap-3">
-                            <div className="w-1.5 h-1.5 bg-blue-300 rounded-full"></div>
+                            <div className="w-1.5 h-1.5 bg-white/60 rounded-full"></div>
                             <span>Commission Tracking & Payments</span>
                         </div>
                         <div className="flex items-center gap-3">
-                            <div className="w-1.5 h-1.5 bg-blue-300 rounded-full"></div>
+                            <div className="w-1.5 h-1.5 bg-white/60 rounded-full"></div>
                             <span>Complete Audit Trail</span>
                         </div>
                     </div>
@@ -86,11 +91,18 @@ export default function LoginPage() {
             </div>
 
             {/* Right Panel - Login Form */}
-            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gradient-to-br from-gray-50 to-gray-100">
+            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gradient-to-br from-slate-50 to-slate-100">
                 <div className="w-full max-w-md">
                     {/* Mobile Logo */}
                     <div className="lg:hidden mb-8 text-center">
-                        <img src="/logo.png" alt="OnSpot" className="h-12 w-auto mx-auto mb-4" />
+                        <Image
+                            src="/logo.png"
+                            alt="OnSpot"
+                            width={150}
+                            height={48}
+                            className="h-12 w-auto mx-auto mb-4 bg-white p-2 rounded-lg"
+                            priority
+                        />
                     </div>
 
                     <div className="bg-white rounded-2xl shadow-xl p-10">
@@ -175,7 +187,7 @@ export default function LoginPage() {
 
                         <div className="mt-8 pt-6 border-t-2 border-gray-100">
                             <p className="text-xs text-gray-500 text-center mb-2">Default credentials for testing:</p>
-                            <div className="bg-gray-50 rounded-lg p-3 text-center">
+                            <div className="bg-slate-50 rounded-lg p-3 text-center">
                                 <p className="font-mono text-sm text-gray-700">
                                     <span className="font-semibold">admin@onspot.one</span> / <span className="font-semibold">Admin@123</span>
                                 </p>
