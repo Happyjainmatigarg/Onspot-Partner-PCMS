@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check, X, ShoppingCart, User, Smartphone, Calendar, FileText } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, User, Calendar, IndianRupee, Check, FileText, Activity } from 'lucide-react';
+import Link from 'next/link';
 
 export default function ServiceDetailPage({ params }) {
     const router = useRouter();
@@ -21,7 +22,7 @@ export default function ServiceDetailPage({ params }) {
             });
             if (res.ok) {
                 const data = await res.json();
-                setService(data.service || data);
+                setService(data);
             }
         } catch (err) {
             console.error('Error fetching service details:', err);
@@ -30,21 +31,14 @@ export default function ServiceDetailPage({ params }) {
         }
     };
 
-    const updateStatus = async (status) => {
-        try {
-            const token = localStorage.getItem('adminToken');
-            await fetch(`/api/admin/services/${id}/status`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ status })
-            });
-            fetchServiceDetails();
-        } catch (err) {
-            console.error('Error updating status:', err);
-        }
+    const getStatusColor = (status) => {
+        const colors = {
+            'ACTIVE': 'bg-emerald-100 text-emerald-700',
+            'PENDING': 'bg-amber-100 text-amber-700',
+            'EXPIRED': 'bg-red-100 text-red-700',
+            'CANCELLED': 'bg-gray-100 text-gray-700'
+        };
+        return colors[status] || colors.PENDING;
     };
 
     if (loading) {
@@ -59,7 +53,9 @@ export default function ServiceDetailPage({ params }) {
         return (
             <div className="text-center p-12">
                 <p className="text-gray-500">Service not found</p>
-                <button onClick={() => router.back()} className="btn-secondary mt-4">Go Back</button>
+                <Link href="/dashboard/services" className="btn-secondary mt-4 inline-block">
+                    Back to Services
+                </Link>
             </div>
         );
     }
@@ -67,124 +63,246 @@ export default function ServiceDetailPage({ params }) {
     return (
         <div>
             {/* Header */}
-            <div className="flex items-center gap-4 mb-6">
-                <button onClick={() => router.back()} className="p-2 hover:bg-gray-100 rounded-full">
-                    <ArrowLeft className="w-5 h-5 text-gray-500" />
-                </button>
-                <div className="flex-1">
-                    <h1 className="text-2xl font-bold text-gray-900">Service Details</h1>
-                    <div className="flex items-center gap-2 text-gray-500 text-sm">
-                        <span>ID: {service.serviceId || service._id}</span>
-                        <span>•</span>
-                        <span className="badge bg-purple-100 text-purple-700">{service.serviceType}</span>
+            <div className="flex items-start justify-between mb-6">
+                <div className="flex items-center gap-4">
+                    <button onClick={() => router.back()} className="p-2 hover:bg-gray-100 rounded-full">
+                        <ArrowLeft className="w-5 h-5 text-gray-500" />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">Service Details</h1>
+                        <div className="flex items-center gap-2 text-gray-500 text-sm mt-1">
+                            <span className="font-mono">{service.serviceId}</span>
+                            <span>•</span>
+                            <span>Created {new Date(service.createdAt).toLocaleDateString()}</span>
+                        </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    {service.status === 'PENDING' && (
-                        <>
-                            <button
-                                onClick={() => updateStatus('ACTIVE')}
-                                className="btn-primary flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700"
-                            >
-                                <Check className="w-4 h-4" /> Approve
-                            </button>
-                            <button
-                                onClick={() => updateStatus('REJECTED')}
-                                className="btn-white border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-2"
-                            >
-                                <X className="w-4 h-4" /> Reject
-                            </button>
-                        </>
-                    )}
-                    <span className={`badge px-3 py-1 ${service.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' :
-                            service.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
-                                'bg-amber-100 text-amber-700'
-                        }`}>
-                        {service.status}
-                    </span>
-                </div>
+                <span className={`badge px-3 py-1.5 ${getStatusColor(service.status)}`}>
+                    {service.status}
+                </span>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Service Info */}
-                <div className="bg-white rounded-xl shadow-sm p-6 space-y-6">
-                    <h2 className="text-lg font-semibold flex items-center gap-2">
-                        <ShoppingCart className="w-5 h-5 text-primary-500" />
-                        Plan Information
-                    </h2>
-                    <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-                        <div>
-                            <label className="text-xs text-gray-400 uppercase">Service Type</label>
-                            <p className="font-medium">{service.serviceType}</p>
-                            <p className="text-xs text-gray-500">{
-                                service.serviceType === 'ESS' ? 'Extended Security Service' :
-                                    service.serviceType === 'EPS' ? 'Extended Protection Service' : 'Complete Device Care'
-                            }</p>
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 uppercase">Plan Cost</label>
-                            <p className="font-bold text-lg">₹{service.serviceCost?.toLocaleString()}</p>
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 uppercase">Duration</label>
-                            <p className="font-medium">{service.planDuration || 12} Months</p>
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 uppercase">Commission</label>
-                            <p className="font-medium text-emerald-600">₹{service.commissionAmount?.toLocaleString() || 0}</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Device Info */}
-                <div className="bg-white rounded-xl shadow-sm p-6 space-y-6">
-                    <h2 className="text-lg font-semibold flex items-center gap-2">
-                        <Smartphone className="w-5 h-5 text-primary-500" />
-                        Device Details
-                    </h2>
-                    <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-                        <div>
-                            <label className="text-xs text-gray-400 uppercase">Brand</label>
-                            <p className="font-medium">{service.deviceBrand}</p>
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 uppercase">Model</label>
-                            <p className="font-medium">{service.deviceModel}</p>
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 uppercase">IMEI / Serial</label>
-                            <p className="font-mono">{service.imeiNumber || service.serialNumber}</p>
-                        </div>
-                        <div>
-                            <label className="text-xs text-gray-400 uppercase">Purchase Date</label>
-                            <p className="font-medium">{new Date(service.devicePurchaseDate).toLocaleDateString()}</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Main Info */}
+                <div className="lg:col-span-2 space-y-6">
+                    {/* Service Details */}
+                    <div className="bg-white rounded-xl shadow-sm p-6">
+                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <ShoppingCart className="w-5 h-5 text-primary-500" />
+                            Service Information
+                        </h2>
+                        <div className="grid grid-cols-2 gap-6">
+                            <div>
+                                <label className="text-xs text-gray-400 uppercase">Service Type</label>
+                                <p className="font-medium text-lg badge bg-blue-100 text-blue-700 mt-1 inline-block">
+                                    {service.serviceType}
+                                </p>
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-400 uppercase">Service Cost</label>
+                                <p className="font-bold text-xl text-emerald-600 mt-1">
+                                    ₹{(service.serviceCost || 0).toLocaleString('en-IN')}
+                                </p>
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-400 uppercase">Service Period</label>
+                                <p className="font-medium">{service.servicePeriod || 'N/A'}</p>
+                            </div>
+                            {service.activatedAt && (
+                                <div>
+                                    <label className="text-xs text-gray-400 uppercase">Activated On</label>
+                                    <p className="font-medium">{new Date(service.activatedAt).toLocaleDateString('en-IN')}</p>
+                                </div>
+                            )}
                         </div>
                     </div>
-                </div>
 
-                {/* Customer Info */}
-                <div className="bg-white rounded-xl shadow-sm p-6 space-y-6 lg:col-span-2">
-                    <h2 className="text-lg font-semibold flex items-center gap-2">
-                        <User className="w-5 h-5 text-primary-500" />
-                        Customer & Partner Info
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="p-4 bg-gray-50 rounded-lg">
-                            <h3 className="font-medium mb-2 text-gray-700">Customer</h3>
-                            <div className="space-y-1">
-                                <p className="font-medium">{service.customerName}</p>
-                                <p className="text-sm text-gray-500">{service.customerEmail}</p>
-                                <p className="text-sm text-gray-500">{service.customerMobile}</p>
+                    {/* Customer Info */}
+                    <div className="bg-white rounded-xl shadow-sm p-6">
+                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <User className="w-5 h-5 text-primary-500" />
+                            Customer Information
+                        </h2>
+                        <div className="grid grid-cols-2 gap-6">
+                            <div>
+                                <label className="text-xs text-gray-400 uppercase">Customer ID</label>
+                                <p className="font-mono text-sm">{service.customerId}</p>
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-400 uppercase">Name</label>
+                                <p className="font-medium">{service.customerName || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-400 uppercase">Mobile</label>
+                                <p className="font-medium">{service.customerMobile || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-400 uppercase">Email</label>
+                                <p className="font-medium text-sm">{service.customerEmail || 'N/A'}</p>
                             </div>
                         </div>
-                        <div className="p-4 bg-gray-50 rounded-lg">
-                            <h3 className="font-medium mb-2 text-gray-700">Partner (Seller)</h3>
-                            <div className="space-y-1">
-                                <p className="font-medium">{service.partnerName || 'Unknown Partner'}</p>
-                                <p className="text-sm text-gray-500">ID: {service.partnerId}</p>
+                        <Link
+                            href={`/dashboard/customers/${service.customerId}`}
+                            className="btn-secondary mt-4 inline-flex items-center gap-2"
+                        >
+                            View Customer Details →
+                        </Link>
+                    </div>
+
+                    {/* Partner Info */}
+                    <div className="bg-white rounded-xl shadow-sm p-6">
+                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <User className="w-5 h-5 text-primary-500" />
+                            Partner Information
+                        </h2>
+                        <div className="grid grid-cols-2 gap-6">
+                            <div>
+                                <label className="text-xs text-gray-400 uppercase">Partner ID</label>
+                                <p className="font-mono text-sm">{service.partnerId}</p>
+                            </div>
+                            <div>
+                                <label className="text-xs text-gray-400 uppercase">Partner Type</label>
+                                <p className="badge bg-purple-100 text-purple-700">{service.partnerType || 'N/A'}</p>
+                            </div>
+                        </div>
+                        <Link
+                            href={`/dashboard/partners/${service.partnerId}`}
+                            className="btn-secondary mt-4 inline-flex items-center gap-2"
+                        >
+                            View Partner Details →
+                        </Link>
+                    </div>
+
+                    {/* Device Info */}
+                    {service.productBrand && (
+                        <div className="bg-white rounded-xl shadow-sm p-6">
+                            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                                <Activity className="w-5 h-5 text-primary-500" />
+                                Device Information
+                            </h2>
+                            <div className="grid grid-cols-2 gap-6">
+                                <div>
+                                    <label className="text-xs text-gray-400 uppercase">Brand</label>
+                                    <p className="font-medium">{service.productBrand}</p>
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-400 uppercase">Model</label>
+                                    <p className="font-medium">{service.productModel || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-400 uppercase">Serial/IMEI</label>
+                                    <p className="font-mono text-sm">{service.productSerial || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-400 uppercase">Purchase Value</label>
+                                    <p className="font-bold text-emerald-600">
+                                        ₹{(service.productValue || 0).toLocaleString('en-IN')}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Sidebar Info */}
+                <div className="space-y-6">
+                    {/* Commission Details */}
+                    <div className="bg-white rounded-xl shadow-sm p-6">
+                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <IndianRupee className="w-5 h-5 text-amber-500" />
+                            Commission
+                        </h2>
+                        <div className="space-y-3">
+                            <div className="flex justify-between">
+                                <span className="text-sm text-gray-500">Rate</span>
+                                <span className="font-medium">{service.commissionPercentage}%</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-sm text-gray-500">Before GST</span>
+                                <span className="font-medium">₹{(service.commissionBeforeGST || 0).toLocaleString('en-IN')}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-sm text-gray-500">GST (18%)</span>
+                                <span className="text-red-600">-₹{(service.gstAmount || 0).toLocaleString('en-IN')}</span>
+                            </div>
+                            <hr />
+                            <div className="flex justify-between">
+                                <span className="font-medium">After GST</span>
+                                <span className="font-bold text-emerald-600">
+                                    ₹{(service.commissionAfterGST || 0).toLocaleString('en-IN')}
+                                </span>
+                            </div>
+                            <div className="mt-4 pt-4 border-t">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm text-gray-500">Payment Status</span>
+                                    {service.commissionPaid ? (
+                                        <span className="badge bg-emerald-100 text-emerald-700">Paid</span>
+                                    ) : (
+                                        <span className="badge bg-amber-100 text-amber-700">Unpaid</span>
+                                    )}
+                                </div>
+                                {service.commissionPaidDate && (
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        Paid on {new Date(service.commissionPaidDate).toLocaleDateString('en-IN')}
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>
+
+                    {/* Timeline */}
+                    <div className="bg-white rounded-xl shadow-sm p-6">
+                        <h2 className="text-lg font-semibold mb-4">Timeline</h2>
+                        <div className="space-y-4">
+                            <div className="flex items-start gap-3">
+                                <div className="p-1.5 bg-blue-50 rounded text-blue-600">
+                                    <Calendar className="w-3.5 h-3.5" />
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-500">Created</p>
+                                    <p className="text-sm font-medium">{new Date(service.createdAt).toLocaleDateString('en-IN')}</p>
+                                </div>
+                            </div>
+                            {service.activatedAt && (
+                                <div className="flex items-start gap-3">
+                                    <div className="p-1.5 bg-emerald-50 rounded text-emerald-600">
+                                        <Check className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500">Activated</p>
+                                        <p className="text-sm font-medium">{new Date(service.activatedAt).toLocaleDateString('en-IN')}</p>
+                                    </div>
+                                </div>
+                            )}
+                            {service.expiryDate && (
+                                <div className="flex items-start gap-3">
+                                    <div className="p-1.5 bg-purple-50 rounded text-purple-600">
+                                        <Calendar className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500">Expires</p>
+                                        <p className="text-sm font-medium">{new Date(service.expiryDate).toLocaleDateString('en-IN')}</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Documents */}
+                    {service.invoiceNumber && (
+                        <div className="bg-white rounded-xl shadow-sm p-6">
+                            <h2 className="text-lg font-semibold mb-4">Documents</h2>
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                    <FileText className="w-5 h-5 text-gray-400" />
+                                    <div>
+                                        <p className="text-sm font-medium">Sales Invoice</p>
+                                        <p className="text-xs text-gray-500">{service.invoiceNumber}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
