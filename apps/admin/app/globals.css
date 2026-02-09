@@ -33,7 +33,8 @@ input[type="button"] {
 input,
 select,
 textarea {
-    font-size: 16px; /* Prevents iOS zoom on focus */
+    font-size: 16px;
+    /* Prevents iOS zoom on focus */
     min-height: 44px;
 }
 
@@ -44,6 +45,7 @@ input[type="number"] {
 
 /* Responsive Breakpoints */
 @media (max-width: 768px) {
+
     /* Mobile Navigation */
     .sidebar {
         position: fixed;
@@ -90,7 +92,7 @@ input[type="number"] {
     .hamburger {
         display: flex;
         align-items: center;
-        justify-center;
+        justify-content: center;
         width: 44px;
         height: 44px;
         background: none;
@@ -124,7 +126,8 @@ input[type="number"] {
     }
 
     thead {
-        display: none; /* Hide on mobile, use card layout */
+        display: none;
+        /* Hide on mobile, use card layout */
     }
 
     tr {
@@ -199,6 +202,7 @@ input[type="number"] {
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
+
     /* Tablet */
     .dashboard-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -214,6 +218,7 @@ input[type="number"] {
 }
 
 @media (min-width: 1025px) {
+
     /* Desktop */
     .dashboard-grid {
         grid-template-columns: repeat(3, 1fr);
@@ -256,6 +261,7 @@ input[type="number"] {
     0% {
         background-position: 200% 0;
     }
+
     100% {
         background-position: -200% 0;
     }
@@ -273,6 +279,7 @@ textarea:focus-visible {
 
 /* Print Styles */
 @media print {
+
     .sidebar,
     .mobile-header,
     button,
