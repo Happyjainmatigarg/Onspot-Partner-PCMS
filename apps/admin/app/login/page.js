@@ -36,8 +36,11 @@ export default function LoginPage() {
                 throw new Error(data.error || 'Login failed');
             }
 
+            // Store both token and admin data
             localStorage.setItem('adminToken', data.token);
             localStorage.setItem('admin', JSON.stringify(data.admin));
+            localStorage.setItem('adminData', JSON.stringify(data.admin)); // Also store as adminData for compatibility
+
             router.push('/dashboard');
         } catch (err) {
             setError(err.message);
@@ -52,58 +55,66 @@ export default function LoginPage() {
             <div
                 className="hidden lg:flex lg:w-1/2 relative overflow-hidden"
                 style={{
-                    backgroundImage: `linear-gradient(135deg, rgba(11, 37, 69, 0.95) 0%, rgba(19, 64, 116, 0.9) 100%), url(https://images.unsplash.com/photo-1551434678-e076c223a692?w=1200)`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center"
+                    background: 'linear-gradient(135deg, #0B2545 0%, #134074 100%)'
                 }}
             >
-                <div className="absolute inset-0 flex flex-col justify-center px-12 text-white">
+                <div className="absolute inset-0 flex flex-col justify-center px-16 text-white">
                     <div className="mb-8">
-                        <img src="/logo.png" alt="Ccommerce Ecosystem" className="h-14 w-auto" />
+                        <img src="/logo.png" alt="OnSpot - Admin Portal" className="h-14 w-auto" />
                     </div>
-                    <h1 className="text-5xl font-bold mb-4 leading-tight">
+                    <h1 className="text-5xl font-bold mb-6 leading-tight">
                         Admin<br />Dashboard
                     </h1>
-                    <p className="text-lg text-blue-100 max-w-md leading-relaxed">
-                        Manage partners, customers, and system settings for the OnSpot™ ecosystem.
+                    <p className="text-xl text-blue-100 max-w-md leading-relaxed mb-8">
+                        Manage the entire OnSpot™ partner ecosystem from one powerful platform.
                     </p>
-                    <div className="mt-12 flex items-center gap-4 text-sm text-blue-200">
-                        <Shield className="w-5 h-5" />
-                        <span>Secure & Reliable</span>
+                    <div className="space-y-4 text-blue-100">
+                        <div className="flex items-center gap-3">
+                            <div className="w-1.5 h-1.5 bg-blue-300 rounded-full"></div>
+                            <span>Partner & Customer Management</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-1.5 h-1.5 bg-blue-300 rounded-full"></div>
+                            <span>Commission Tracking & Payments</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-1.5 h-1.5 bg-blue-300 rounded-full"></div>
+                            <span>Complete Audit Trail</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
             {/* Right Panel - Login Form */}
-            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
+            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gradient-to-br from-gray-50 to-gray-100">
                 <div className="w-full max-w-md">
                     {/* Mobile Logo */}
                     <div className="lg:hidden mb-8 text-center">
-                        <img src="/logo.png" alt="Ccommerce Ecosystem" className="h-12 w-auto mx-auto mb-4" />
+                        <img src="/logo.png" alt="OnSpot" className="h-12 w-auto mx-auto mb-4" />
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-lg p-8">
+                    <div className="bg-white rounded-2xl shadow-xl p-10">
                         <div className="text-center mb-8">
-                            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-800 rounded-full mb-4">
+                            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl mb-4 shadow-lg">
                                 <Shield className="w-8 h-8 text-white" />
                             </div>
                             <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                                Administrator
+                                Administrator Login
                             </h2>
                             <p className="text-gray-600">
-                                Sign in to access the dashboard
+                                Sign in to manage the platform
                             </p>
                         </div>
 
                         {error && (
-                            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 text-sm">
-                                {error}
+                            <div className="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg mb-6 text-sm">
+                                <p className="font-medium">{error}</p>
                             </div>
                         )}
 
                         <form onSubmit={handleSubmit} className="space-y-5">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
                                     Email Address
                                 </label>
                                 <div className="relative">
@@ -113,14 +124,14 @@ export default function LoginPage() {
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         placeholder="admin@onspot.one"
-                                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                        className="w-full pl-11 pr-4 py-3.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
                                         required
                                     />
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
                                     Password
                                 </label>
                                 <div className="relative">
@@ -130,7 +141,7 @@ export default function LoginPage() {
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         placeholder="Enter your password"
-                                        className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                        className="w-full pl-11 pr-12 py-3.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
                                         required
                                     />
                                     <button
@@ -146,30 +157,34 @@ export default function LoginPage() {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 focus:ring-4 focus:ring-blue-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 px-6 rounded-xl font-semibold text-base hover:from-blue-700 hover:to-blue-800 focus:ring-4 focus:ring-blue-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
                             >
                                 {loading ? (
                                     <>
-                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        <div className="w-5 h-5 border-3 border-white border-t-transparent rounded-full animate-spin" />
                                         Signing in...
                                     </>
                                 ) : (
                                     <>
                                         <Shield className="w-5 h-5" />
-                                        Sign In
+                                        Sign In to Dashboard
                                     </>
                                 )}
                             </button>
                         </form>
 
-                        <div className="mt-6 pt-6 border-t border-gray-200 text-center">
-                            <p className="text-xs text-gray-500 mb-1">Default credentials for testing:</p>
-                            <p className="font-mono text-sm text-gray-700 font-medium">admin@onspot.one / Admin@123</p>
+                        <div className="mt-8 pt-6 border-t-2 border-gray-100">
+                            <p className="text-xs text-gray-500 text-center mb-2">Default credentials for testing:</p>
+                            <div className="bg-gray-50 rounded-lg p-3 text-center">
+                                <p className="font-mono text-sm text-gray-700">
+                                    <span className="font-semibold">admin@onspot.one</span> / <span className="font-semibold">Admin@123</span>
+                                </p>
+                            </div>
                         </div>
                     </div>
 
                     <p className="mt-6 text-center text-xs text-gray-500">
-                        © 2026 Ccommerce Ecosystem Pvt. Ltd. | OnSpot™
+                        © 2026 Ccommerce Ecosystem Pvt. Ltd. | OnSpot™ Admin Portal
                     </p>
                 </div>
             </div>
