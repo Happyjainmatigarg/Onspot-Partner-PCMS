@@ -96,10 +96,13 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        // Generate customer ID
-        const customerId = generateCustomerId(mobile);
+        // Generate IDs
+        const { generateCustomerId, generateProductId, generateServiceId } = require('../utils/idGenerator');
+        const customerId = await generateCustomerId(mobile);
+        const productId = await generateProductId(device.productType === 'Mobile' ? 'MBL' : 'APP');
+        const serviceId = await generateServiceId();
 
-        // Create new customer
+        // 1. Create Customer
         const customer = new Customer({
             customerId,
             partnerId,
@@ -111,17 +114,11 @@ router.post('/register', async (req, res) => {
             termsAcceptedAt: new Date(),
             status: 'PENDING'
         });
-
         await customer.save();
 
-        // Create service record
-        const percentages = { ESS: 8, EPS: 15, CDC: 20 };
-        const percentage = percentages[serviceType] || 15;
-        const serviceCost = Math.round((parseFloat(device.purchaseValue) * percentage) / 100);
-
-        const serviceId = `SRV-${customerId}-${Date.now().toString().slice(-6)}`;
-        const service = new Service({
-            serviceId,
+        // 2. Create Product
+        const product = new Product({
+            productId,
             customerId,
             partnerId,
             productType: device.productType,
@@ -130,11 +127,30 @@ router.post('/register', async (req, res) => {
             serialNumber: device.serialNumber,
             purchaseValue: parseFloat(device.purchaseValue),
             purchaseDate: new Date(device.purchaseDate),
+            invoiceNumber: device.invoiceNumber, // Assuming invoice number is provided in device object or generated
+            status: 'ACTIVE' // Product itself is active (exists), service is pending
+        });
+        await product.save();
+
+        // 3. Create Service
+        // Calculate service cost and commission
+        // Note: Logic allows client-side calculation but we should verify or allow it.
+        // For now, using logic from partners.js for consistency
+        const percentages = { ESS: 8, EPS: 15, CDC: 20 };
+        // Determine percentage based on type or category if possible, currently simple map
+        const percentage = percentages[serviceType] || 15;
+        const serviceCost = Math.round((parseFloat(device.purchaseValue) * percentage) / 100);
+
+        const service = new Service({
+            serviceId,
+            customerId,
+            partnerId,
+            productId,
             serviceType,
+            servicePercentage: percentage,
             serviceCost,
             status: 'PENDING'
         });
-
         await service.save();
 
         await createAuditLog({
