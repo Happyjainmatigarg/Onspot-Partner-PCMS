@@ -533,19 +533,20 @@ router.get('/dashboard', authenticate, async (req, res) => {
             });
         }
 
-        stats: {
-            totalSales,
+        res.json({
+            stats: {
+                totalSales,
                 totalCommission,
                 pendingApprovals,
                 activeCustomers
-        },
-        recentSales,
+            },
+            recentSales,
             monthlySales
-    });
+        });
     } catch (error) {
-    console.error('Dashboard error:', error);
-    res.status(500).json({ error: 'Failed to fetch dashboard data' });
-}
+        console.error('Dashboard error:', error);
+        res.status(500).json({ error: 'Failed to fetch dashboard data' });
+    }
 });
 
 // GET /api/partners/sales (protected)
