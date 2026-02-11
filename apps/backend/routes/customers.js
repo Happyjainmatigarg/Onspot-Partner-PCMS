@@ -5,8 +5,8 @@ const Customer = require('../models/Customer');
 const Service = require('../models/Service');
 const Product = require('../models/Product');
 const { authenticate } = require('../middleware/auth');
-const { generateToken } = require('../utils/jwt');
-const { createAuditLog, extractAuditInfo } = require('../utils/audit');
+const { generateToken } = require('../middleware/auth');
+const { createAuditLog, extractAuditInfo } = require('../services/audit');
 
 // Helper function to generate customer ID
 function generateCustomerId(mobile) {
