@@ -356,7 +356,7 @@ router.get('/customers/:id', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS'),
         // Calculate preview commission if pending
         let commissionPreview = null;
         if (service && service.status === 'PENDING' && partner) {
-            commissionPreview = calculateCommission(
+            commissionPreview = await calculateCommission(
                 product.purchaseValue,
                 service.serviceType,
                 partner.partnerType
@@ -396,7 +396,7 @@ router.post('/customers/:id/approve', authenticate, authorize('SUPER_ADMIN', 'AC
         }
 
         // Calculate commission
-        const commission = calculateCommission(
+        const commission = await calculateCommission(
             product.purchaseValue,
             service.serviceType,
             partner.partnerType
@@ -1293,6 +1293,266 @@ router.post('/reports/export', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS'
         });
     } catch (error) {
         res.status(500).json({ error: 'Failed to export report' });
+    }
+});
+
+// ===== SYSTEM SETTINGS & ADMIN MANAGEMENT =====
+
+// GET /api/admin/users
+router.get('/users', authenticate, authorize('SUPER_ADMIN'), async (req, res) => {
+    try {
+        const admins = await Admin.find().select('-password').sort({ createdAt: -1 });
+        res.json({ admins });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch admin users' });
+    }
+});
+
+// POST /api/admin/users
+router.post('/users', authenticate, authorize('SUPER_ADMIN'), async (req, res) => {
+    try {
+        const { name, email, mobile, role, password } = req.body;
+
+        const exists = await Admin.findOne({ email: email.toLowerCase() });
+        if (exists) {
+            return res.status(400).json({ error: 'Admin already exists' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const adminId = generateAdminId();
+
+        const admin = new Admin({
+            adminId,
+            name,
+            email: email.toLowerCase(),
+            mobile,
+            role,
+            password: hashedPassword,
+            createdBy: req.user.email
+        });
+
+        await admin.save();
+
+        await createAuditLog({
+            action: 'CREATE', entity: 'ADMIN', entityId: adminId,
+            performedBy: req.user.email, performedByRole: req.user.role,
+            newData: admin.toObject(), ...extractAuditInfo(req),
+            details: `Admin user created: ${name} (${role})`
+        });
+
+        res.status(201).json({ success: true, admin });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create admin user' });
+    }
+});
+
+// GET /api/admin/audit-logs
+router.get('/audit-logs', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS', 'OPERATIONS'), async (req, res) => {
+    try {
+        const { action, entity, search, dateFrom, dateTo, page = 1, limit = 50 } = req.query;
+        const query = {};
+
+        if (action) query.action = action;
+        if (entity) query.entity = entity;
+        if (search) {
+            query.$or = [
+                { entityId: new RegExp(search, 'i') },
+                { details: new RegExp(search, 'i') },
+                { performedBy: new RegExp(search, 'i') }
+            ];
+        }
+        if (dateFrom || dateTo) {
+            query.timestamp = {};
+            if (dateFrom) query.timestamp.$gte = new Date(dateFrom);
+            if (dateTo) query.timestamp.$lte = new Date(dateTo);
+        }
+
+        const logs = await AuditLog.find(query)
+            .sort({ timestamp: -1 })
+            .skip((page - 1) * limit)
+            .limit(parseInt(limit))
+            .lean();
+
+        const total = await AuditLog.countDocuments(query);
+
+        res.json({ logs, total, page: parseInt(page), limit: parseInt(limit) });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch audit logs' });
+    }
+});
+
+// PATCH /api/admin/services/:id/status
+router.patch('/services/:id/status', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS', 'OPERATIONS'), async (req, res) => {
+    try {
+        const { status } = req.body;
+        const service = await Service.findOne({ serviceId: req.params.id || req.params.id }); // Handle _id vs serviceId mapping if needed, usually passed as ID
+
+        // Fallback to searching by _id if serviceId not found
+        const targetService = service || await Service.findById(req.params.id);
+
+        if (!targetService) {
+            return res.status(404).json({ error: 'Service not found' });
+        }
+
+        const oldData = targetService.toObject();
+        targetService.status = status;
+        if (status === 'ACTIVE') targetService.activatedAt = new Date();
+
+        await targetService.save();
+
+        await createAuditLog({
+            action: 'UPDATE_STATUS', entity: 'SERVICE', entityId: targetService.serviceId,
+            performedBy: req.user.email, performedByRole: req.user.role,
+            oldData, newData: targetService.toObject(), ...extractAuditInfo(req),
+            details: `Service status updated to ${status}`
+        });
+
+        res.json({ success: true, service: targetService });
+    } catch (error) {
+        console.error('Service status update error:', error);
+        res.status(500).json({ error: 'Failed to update service status' });
+    }
+});
+
+// PATCH /api/admin/customers/:id/status (Quick Action)
+router.patch('/customers/:id/status', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS'), async (req, res) => {
+    try {
+        const { status } = req.body;
+        // This is a quick action endpoint. 
+        // NOTE: 'APPROVED' here will be partial if used for fresh registrations as it skips commission logic!
+        // We should restrict this or handle it carefully.
+
+        const customer = await Customer.findById(req.params.id);
+        if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+        if (status === 'APPROVED' && customer.status === 'PENDING') {
+            return res.status(400).json({ error: 'Please use the detailed review page to approve new customers.' });
+        }
+
+        if (status === 'REJECTED') {
+            customer.rejectionReason = req.body.reason || 'Quick rejection via dashboard';
+        }
+
+        const oldData = customer.toObject();
+        customer.status = status;
+        await customer.save();
+
+        await createAuditLog({
+            action: 'UPDATE_STATUS', entity: 'CUSTOMER', entityId: customer.customerId,
+            performedBy: req.user.email, performedByRole: req.user.role,
+            oldData, newData: customer.toObject(), ...extractAuditInfo(req),
+            details: `Customer status updated to ${status} via quick action`
+        });
+
+        res.json({ success: true, customer });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update customer status' });
+    }
+});
+
+// GET /api/admin/settings
+router.get('/settings', authenticate, authorize('SUPER_ADMIN'), async (req, res) => {
+    try {
+        const settings = await SystemSetting.find();
+
+        // Transform into a cleaner object for frontend if needed, or send array
+        // Sending array is fine, or we can reshape. Let's send a shaped object matching frontend expectation
+
+        const config = {
+            commissions: { STANDARD: 10, SILVER: 12, GOLD: 15, PREMIUM: 18 }, // Default structure fallback
+            company: {
+                companyName: 'Ccommerce Ecosystem Pvt. Ltd.',
+                gstNumber: '06AABCC1234A1Z5',
+                supportEmail: 'support@onspot.one',
+                supportPhone: '+91-XXXXXXXXXX'
+            },
+            notifications: {
+                emailNotifications: true,
+                smsNotifications: true,
+                autoApprovePartners: false,
+                autoApproveCustomers: false
+            }
+        };
+
+        settings.forEach(s => {
+            if (s.settingKey === 'COMMISSION_STRUCTURE_FLAT') config.commissions = s.settingValue; // If we switch to flat structure
+            if (s.settingKey === 'COMPANY_INFO') config.company = s.settingValue;
+            if (s.settingKey === 'NOTIFICATION_PREFS') config.notifications = s.settingValue;
+
+            // Map legacy/complex keys if necessary
+        });
+
+        res.json(config);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch settings' });
+    }
+});
+
+// PUT /api/admin/settings
+router.put('/settings', authenticate, authorize('SUPER_ADMIN'), async (req, res) => {
+    try {
+        const { commissions, company, notifications } = req.body;
+
+        // Save Company Info
+        if (company) {
+            await SystemSetting.findOneAndUpdate(
+                { settingKey: 'COMPANY_INFO' },
+                {
+                    settingKey: 'COMPANY_INFO',
+                    settingValue: company,
+                    category: 'SYSTEM',
+                    description: 'Company details'
+                },
+                { upsert: true }
+            );
+        }
+
+        // Save Notifications
+        if (notifications) {
+            await SystemSetting.findOneAndUpdate(
+                { settingKey: 'NOTIFICATION_PREFS' },
+                {
+                    settingKey: 'NOTIFICATION_PREFS',
+                    settingValue: notifications,
+                    category: 'SYSTEM',
+                    description: 'Notification preferences'
+                },
+                { upsert: true }
+            );
+        }
+
+        // Save Commissions (Logic update needed here to match Schema)
+        // The original schema used a nested object by Service Type. 
+        // The frontend sends flat rates by Partner Tier. 
+        // We need to decide: Update the complex structure based on these flat rates?
+        // Or store this as a separate simplified setting?
+        // For now, let's store it as 'COMMISSION_FLAT_RATES' to avoid breaking the engine
+        // BUT ideally we should map these back to the engine structure if that's what user intends.
+
+        if (commissions) {
+            await SystemSetting.findOneAndUpdate(
+                { settingKey: 'COMMISSION_FLAT_RATES' },
+                {
+                    settingKey: 'COMMISSION_FLAT_RATES',
+                    settingValue: commissions,
+                    category: 'COMMISSION',
+                    description: 'Flat commission rates by tier (UI)'
+                },
+                { upsert: true }
+            );
+        }
+
+        await createAuditLog({
+            action: 'UPDATE', entity: 'ADMIN', entityId: 'SETTINGS',
+            performedBy: req.user.email, performedByRole: req.user.role,
+            ...extractAuditInfo(req),
+            details: 'System settings updated'
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Settings update error:', error);
+        res.status(500).json({ error: 'Failed to update settings' });
     }
 });
 

@@ -15,8 +15,8 @@ const LOGO_PATHS = {
 };
 
 // Read Agreement and SLA from markdown files
-const AGREEMENT_MD_PATH = path.join(__dirname, '../../../Partner Aggrement.md');
-const SLA_MD_PATH = path.join(__dirname, '../../../SLA.md');
+const AGREEMENT_MD_PATH = path.join(__dirname, '../../../../Partner Aggrement.md');
+const SLA_MD_PATH = path.join(__dirname, '../../../../SLA.md');
 
 /**
  * Helper to render formatted text with improved markdown handling
@@ -69,13 +69,13 @@ function renderFormattedText(doc, text) {
                     width: colWidth - 10,
                     align: 'left'
                 });
-                
+
                 // Draw cell borders
                 if (inTable) {
                     doc.rect(cellX - 5, startY - 2, colWidth, 18).stroke('#EEEEEE');
                 }
             });
-            
+
             doc.moveDown(0.8);
             inTable = true;
             return;
@@ -205,7 +205,7 @@ async function generatePartnerAgreementPDF(partner) {
             let agreementContent = '';
             try {
                 agreementContent = fs.readFileSync(AGREEMENT_MD_PATH, 'utf-8');
-                
+
                 // Replace dynamic placeholders
                 agreementContent = agreementContent
                     .replace(/\{\{partnerName\}\}/g, partner.applicantName || partner.businessName || 'N/A')
@@ -219,7 +219,7 @@ async function generatePartnerAgreementPDF(partner) {
                     .replace(/__\s+day\s+of\s+___,\s+20\s+/g, `${new Date().getDate()} day of ${new Date().toLocaleString('default', { month: 'long' })}, ${new Date().getFullYear()}`)
                     .replace(/__________/g, new Date().toLocaleDateString('en-IN'))
                     .replace(/_{10,}/g, '________________');
-                    
+
             } catch (error) {
                 console.error('Failed to read Agreement MD file:', error);
                 // Fallback to basic agreement text

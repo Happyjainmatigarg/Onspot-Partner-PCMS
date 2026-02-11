@@ -54,6 +54,7 @@ export default function SettingsPage() {
     useEffect(() => {
         loadAdminProfile();
         loadAdminUsers();
+        loadSystemSettings();
     }, []);
 
     const loadAdminProfile = () => {
@@ -80,6 +81,23 @@ export default function SettingsPage() {
         }
     };
 
+    const loadSystemSettings = async () => {
+        try {
+            const token = localStorage.getItem('adminToken');
+            const res = await fetch('/api/admin/settings', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.company) setCompany(data.company);
+                if (data.commissions) setCommissions(data.commissions);
+                if (data.notifications) setNotifications(data.notifications);
+            }
+        } catch (err) {
+            console.error('Error loading settings:', err);
+        }
+    };
+
     const handleSaveProfile = async () => {
         setSaving(true);
         setMessage('');
@@ -95,6 +113,11 @@ export default function SettingsPage() {
                     return;
                 }
             }
+
+            // TODO: Implement profile update endpoint separately if needed.
+            // For now, assuming basic profile edit is local or managed via separate route.
+            // But let's simulate success for the demo as requested if no route exists yet.
+            // Real implementation would be PUT /api/admin/profile (not yet created)
 
             await new Promise(resolve => setTimeout(resolve, 1000));
             setMessage('Profile updated successfully!');
@@ -117,9 +140,27 @@ export default function SettingsPage() {
         setSaving(true);
         setMessage('');
         try {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            setMessage('Settings saved successfully!');
+            const token = localStorage.getItem('adminToken');
+            const res = await fetch('/api/admin/settings', {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    company: activeTab === 'company' ? company : undefined,
+                    commissions: activeTab === 'commissions' ? commissions : undefined,
+                    notifications: activeTab === 'notifications' ? notifications : undefined
+                })
+            });
+
+            if (res.ok) {
+                setMessage('Settings saved successfully!');
+            } else {
+                setMessage('Failed to save settings');
+            }
         } catch (err) {
+            console.error(err);
             setMessage('Error saving settings');
         } finally {
             setSaving(false);
@@ -183,8 +224,8 @@ export default function SettingsPage() {
                             key={tab}
                             onClick={() => setActiveTab(tab)}
                             className={`pb-3 border-b-2 transition-colors capitalize ${activeTab === tab
-                                    ? 'border-primary-600 text-primary-600 font-medium'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                                ? 'border-primary-600 text-primary-600 font-medium'
+                                : 'border-transparent text-gray-500 hover:text-gray-700'
                                 }`}
                         >
                             {tab === 'users' ? 'Admin Users' : tab}

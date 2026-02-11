@@ -162,7 +162,7 @@ async function seedDatabase() {
         }
 
         // Verify commission engine
-        verifyCommissionEngine();
+        await verifyCommissionEngine();
 
     } catch (error) {
         console.error('Database seeding error:', error);
