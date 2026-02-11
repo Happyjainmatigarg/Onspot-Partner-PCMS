@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import {
     Shield, LayoutDashboard, Users, ShoppingCart, Coins, FileText, Settings, LogOut, Menu, X,
-    Bell, Clock
+    Bell, Clock, BarChart3, Building2, Package, Wallet, UserCog, ChevronDown, ChevronRight
 } from 'lucide-react';
 
 export default function DashboardLayout({ children }) {
@@ -12,6 +12,7 @@ export default function DashboardLayout({ children }) {
     const pathname = usePathname();
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [admin, setAdmin] = useState(null);
+    const [erpExpanded, setErpExpanded] = useState(false);
 
     useEffect(() => {
         const stored = localStorage.getItem('admin');
@@ -36,8 +37,17 @@ export default function DashboardLayout({ children }) {
         { href: '/dashboard/customers', icon: Users, label: 'Customers' },
         { href: '/dashboard/services', icon: ShoppingCart, label: 'Services' },
         { href: '/dashboard/commissions', icon: Coins, label: 'Commissions' },
+        { href: '/dashboard/reports', icon: BarChart3, label: 'Reports' },
         { href: '/dashboard/audit-logs', icon: FileText, label: 'Audit Logs' },
         { href: '/dashboard/settings', icon: Settings, label: 'Settings' }
+    ];
+
+    const erpItems = [
+        { href: '/dashboard/erp', icon: Building2, label: 'ERP Dashboard' },
+        { href: '/dashboard/erp/employees', icon: UserCog, label: 'Employees' },
+        { href: '/dashboard/erp/resources', icon: Package, label: 'Resources' },
+        { href: '/dashboard/erp/inventory', icon: ShoppingCart, label: 'Inventory' },
+        { href: '/dashboard/erp/finance', icon: Wallet, label: 'Finance' }
     ];
 
     const getRoleBadge = (role) => {
@@ -74,7 +84,7 @@ export default function DashboardLayout({ children }) {
                     </div>
 
                     {/* Navigation */}
-                    <nav className="flex-1 p-4 space-y-1">
+                    <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                         {navItems.map(item => (
                             <Link
                                 key={item.href}
@@ -86,6 +96,35 @@ export default function DashboardLayout({ children }) {
                                 <span className="text-sm font-medium">{item.label}</span>
                             </Link>
                         ))}
+
+                        {/* ERP/ERM Section */}
+                        <div className="pt-3 mt-3 border-t border-white/10">
+                            <button
+                                onClick={() => setErpExpanded(!erpExpanded)}
+                                className="w-full sidebar-link flex items-center justify-between"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Building2 className="w-5 h-5" />
+                                    <span className="text-sm font-medium">ERP / ERM</span>
+                                </div>
+                                {erpExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                            </button>
+                            {erpExpanded && (
+                                <div className="ml-4 mt-1 space-y-1">
+                                    {erpItems.map(item => (
+                                        <Link
+                                            key={item.href}
+                                            href={item.href}
+                                            onClick={() => setSidebarOpen(false)}
+                                            className={pathname === item.href ? 'sidebar-link-active' : 'sidebar-link'}
+                                        >
+                                            <item.icon className="w-4 h-4" />
+                                            <span className="text-xs font-medium">{item.label}</span>
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </nav>
 
                     {/* Admin Info */}

@@ -489,19 +489,63 @@ router.get('/dashboard', authenticate, async (req, res) => {
             .limit(10)
             .lean();
 
-        res.json({
-            stats: {
-                totalSales,
+        // Monthly Sales Trend (Last 6 Months)
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+        sixMonthsAgo.setDate(1); // Start of the month
+
+        const monthlyIds = await Service.aggregate([
+            {
+                $match: {
+                    partnerId: partnerId,
+                    createdAt: { $gte: sixMonthsAgo }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        month: { $month: "$createdAt" },
+                        year: { $year: "$createdAt" }
+                    },
+                    sales: { $sum: "$serviceCost" }, // Total Sales Value
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { "_id.year": 1, "_id.month": 1 } }
+        ]);
+
+        // Format for frontend
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthlySales = [];
+
+        // Fill in missing months
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const monthIdx = d.getMonth();
+            const year = d.getFullYear();
+
+            const found = monthlyIds.find(m => m._id.month === monthIdx + 1 && m._id.year === year);
+            monthlySales.push({
+                month: months[monthIdx],
+                sales: found ? found.sales : 0,
+                count: found ? found.count : 0
+            });
+        }
+
+        stats: {
+            totalSales,
                 totalCommission,
                 pendingApprovals,
                 activeCustomers
-            },
-            recentSales
-        });
+        },
+        recentSales,
+            monthlySales
+    });
     } catch (error) {
-        console.error('Dashboard error:', error);
-        res.status(500).json({ error: 'Failed to fetch dashboard data' });
-    }
+    console.error('Dashboard error:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard data' });
+}
 });
 
 // GET /api/partners/sales (protected)

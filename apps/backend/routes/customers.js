@@ -445,4 +445,46 @@ router.get('/services', authenticate, async (req, res) => {
     }
 });
 
+// PUT /api/customers/change-password (protected)
+router.put('/change-password', authenticate, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+
+        const customer = await Customer.findOne({ customerId: req.user.customerId });
+        if (!customer) {
+            return res.status(404).json({ error: 'Customer not found' });
+        }
+
+        const isMatch = await bcrypt.compare(currentPassword, customer.password);
+        if (!isMatch) {
+            return res.status(401).json({ error: 'Current password is incorrect' });
+        }
+
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$%&*])[A-Za-z\d@#$%&*]{8,}$/;
+        if (!passwordRegex.test(newPassword)) {
+            return res.status(400).json({
+                error: 'Password must be at least 8 characters with uppercase, lowercase, number, and special character'
+            });
+        }
+
+        customer.password = await bcrypt.hash(newPassword, 10);
+        await customer.save();
+
+        await createAuditLog({
+            action: 'UPDATE',
+            entity: 'CUSTOMER',
+            entityId: customer.customerId,
+            performedBy: customer.email,
+            performedByRole: 'CUSTOMER',
+            ...extractAuditInfo(req),
+            details: 'Password changed by user'
+        });
+
+        res.json({ success: true, message: 'Password updated successfully' });
+    } catch (error) {
+        console.error('Change password error:', error);
+        res.status(500).json({ error: 'Failed to update password' });
+    }
+});
+
 module.exports = router;

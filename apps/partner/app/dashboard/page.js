@@ -85,14 +85,14 @@ export default function DashboardPage() {
                         <div className="flex items-center justify-between mb-3">
                             <span className="text-sm text-slate-500">{card.label}</span>
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${card.color === 'primary' ? 'bg-primary-100' :
-                                    card.color === 'gold' ? 'bg-gold-100' :
-                                        card.color === 'emerald' ? 'bg-emerald-100' :
-                                            'bg-amber-100'
+                                card.color === 'gold' ? 'bg-gold-100' :
+                                    card.color === 'emerald' ? 'bg-emerald-100' :
+                                        'bg-amber-100'
                                 }`}>
                                 <card.icon className={`w-5 h-5 ${card.color === 'primary' ? 'text-primary-600' :
-                                        card.color === 'gold' ? 'text-gold-600' :
-                                            card.color === 'emerald' ? 'text-emerald-600' :
-                                                'text-amber-600'
+                                    card.color === 'gold' ? 'text-gold-600' :
+                                        card.color === 'emerald' ? 'text-emerald-600' :
+                                            'text-amber-600'
                                     }`} />
                             </div>
                         </div>
@@ -101,66 +101,78 @@ export default function DashboardPage() {
                 ))}
             </div>
 
-            {/* Recent Sales */}
-            <div className="dashboard-card">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="font-display text-lg font-bold text-primary-600">Recent Sales</h2>
-                    <span className="badge badge-info">{data.recentSales?.length || 0} sales</span>
+            {/* Recent Sales & Chart */}
+            <div className="grid lg:grid-cols-3 gap-6">
+                {/* Sales Chart */}
+                <div className="lg:col-span-2 dashboard-card">
+                    <h2 className="font-display text-lg font-bold text-primary-600 mb-6">Monthly Sales Trend</h2>
+
+                    {data.monthlySales?.length > 0 ? (
+                        <div className="h-64 flex items-end justify-between gap-2 sm:gap-4">
+                            {(() => {
+                                const maxSales = Math.max(...data.monthlySales.map(d => d.sales), 100); // Avoid div by 0
+                                return data.monthlySales.map((item, i) => (
+                                    <div key={i} className="flex flex-col items-center gap-2 flex-1 group">
+                                        <div className="relative w-full flex justify-center items-end h-full">
+                                            {/* Tooltip */}
+                                            <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-xs py-1 px-2 rounded pointer-events-none whitespace-nowrap z-10">
+                                                ₹{item.sales.toLocaleString()} ({item.count} sales)
+                                            </div>
+
+                                            {/* Bar */}
+                                            <div
+                                                className="w-full max-w-[40px] bg-primary-500 rounded-t-sm hover:bg-primary-600 transition-all relative"
+                                                style={{ height: `${(item.sales / maxSales) * 100}%`, minHeight: '4px' }}
+                                            ></div>
+                                        </div>
+                                        <span className="text-xs text-slate-500 font-medium">{item.month}</span>
+                                    </div>
+                                ));
+                            })()}
+                        </div>
+                    ) : (
+                        <div className="h-64 flex items-center justify-center text-slate-400 bg-slate-50 rounded-lg">
+                            <p>No sales data available yet</p>
+                        </div>
+                    )}
                 </div>
 
-                {data.recentSales?.length === 0 ? (
-                    <div className="text-center py-12 text-slate-500">
-                        <ShoppingCart className="w-12 h-12 mx-auto mb-2 text-slate-300" />
-                        <p>No sales yet. Start by registering your first customer!</p>
+                {/* Recent Sales List (Compact) */}
+                <div className="dashboard-card overflow-hidden flex flex-col">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="font-display text-lg font-bold text-primary-600">Recent Sales</h2>
+                        <span className="text-xs font-medium text-slate-500">{data.recentSales?.length || 0} recent</span>
                     </div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="table-header">
-                                <tr>
-                                    <th className="px-4 py-3 text-left">Customer</th>
-                                    <th className="px-4 py-3 text-left">Service</th>
-                                    <th className="px-4 py-3 text-left">Amount</th>
-                                    <th className="px-4 py-3 text-left">Commission</th>
-                                    <th className="px-4 py-3 text-left">Status</th>
-                                    <th className="px-4 py-3 text-left">Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+
+                    {data.recentSales?.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-8">
+                            <ShoppingCart className="w-10 h-10 mb-2 text-slate-300" />
+                            <p className="text-sm">No sales yet.</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-y-auto pr-1 flex-1 -mx-4 px-4">
+                            <div className="space-y-3">
                                 {data.recentSales?.map((sale, i) => (
-                                    <tr key={i} className="table-row">
-                                        <td className="px-4 py-3">
-                                            <p className="font-medium text-slate-800">{sale.customerName}</p>
-                                            <p className="text-xs text-slate-500 font-mono">{sale.customerId}</p>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className="badge badge-info">{sale.serviceType}</span>
-                                        </td>
-                                        <td className="px-4 py-3 font-medium">
-                                            ₹{(sale.serviceCost || 0).toLocaleString('en-IN')}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className="text-emerald-600 font-medium">
-                                                ₹{(sale.commission || 0).toLocaleString('en-IN')}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className={`badge ${sale.status === 'ACTIVE' ? 'badge-success' :
-                                                    sale.status === 'PENDING' ? 'badge-warning' :
-                                                        'badge-danger'
-                                                }`}>
-                                                {sale.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-sm text-slate-500">
-                                            {new Date(sale.date).toLocaleDateString('en-IN')}
-                                        </td>
-                                    </tr>
+                                    <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                        <div>
+                                            <p className="font-medium text-slate-800 text-sm truncate max-w-[120px]">{sale.customerName}</p>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className="text-[10px] font-mono text-slate-400">{sale.serviceType}</span>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${sale.status === 'ACTIVE' ? 'bg-emerald-500' :
+                                                        sale.status === 'PENDING' ? 'bg-amber-500' : 'bg-red-500'
+                                                    }`}></span>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-bold text-primary-600 text-sm">₹{sale.serviceCost?.toLocaleString()}</p>
+                                            <p className="text-[10px] text-emerald-600 font-medium">+₹{sale.commissionAfterGST?.toLocaleString()}</p>
+                                        </div>
+                                    </div>
                                 ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Info Card */}

@@ -917,4 +917,383 @@ router.get('/email-history/:entityType/:entityId', authenticate, authorize('SUPE
     }
 });
 
+// ===== DELETE OPERATIONS (Soft Delete) =====
+
+// DELETE /api/admin/partners/:id
+router.delete('/partners/:id', authenticate, authorize('SUPER_ADMIN'), async (req, res) => {
+    try {
+        const { reason } = req.body;
+        const partner = await Partner.findOne({ partnerId: req.params.id });
+        if (!partner) return res.status(404).json({ error: 'Partner not found' });
+
+        const oldData = partner.toObject();
+        partner.status = 'INACTIVE';
+        await partner.save();
+
+        await createAuditLog({
+            action: 'DELETE', entity: 'PARTNER', entityId: partner.partnerId,
+            performedBy: req.user.email, performedByRole: req.user.role,
+            oldData, newData: partner.toObject(), ...extractAuditInfo(req),
+            details: `Partner soft-deleted: ${reason || 'No reason provided'}`
+        });
+
+        res.json({ success: true, message: 'Partner deactivated' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete partner' });
+    }
+});
+
+// DELETE /api/admin/customers/:id
+router.delete('/customers/:id', authenticate, authorize('SUPER_ADMIN'), async (req, res) => {
+    try {
+        const { reason } = req.body;
+        const customer = await Customer.findOne({ customerId: req.params.id });
+        if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+        const oldData = customer.toObject();
+        customer.status = 'REJECTED';
+        customer.rejectionReason = reason || 'Deleted by admin';
+        await customer.save();
+
+        await createAuditLog({
+            action: 'DELETE', entity: 'CUSTOMER', entityId: customer.customerId,
+            performedBy: req.user.email, performedByRole: req.user.role,
+            oldData, newData: customer.toObject(), ...extractAuditInfo(req),
+            details: `Customer soft-deleted: ${reason || 'No reason provided'}`
+        });
+
+        res.json({ success: true, message: 'Customer deactivated' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete customer' });
+    }
+});
+
+// DELETE /api/admin/services/:id
+router.delete('/services/:id', authenticate, authorize('SUPER_ADMIN'), async (req, res) => {
+    try {
+        const { reason } = req.body;
+        const service = await Service.findOne({ serviceId: req.params.id });
+        if (!service) return res.status(404).json({ error: 'Service not found' });
+
+        if (service.commissionPaid) {
+            return res.status(400).json({
+                error: 'Cannot delete service with paid commission. Manual reversal required.',
+                commissionPaid: true
+            });
+        }
+
+        const oldData = service.toObject();
+        service.status = 'CANCELLED';
+        await service.save();
+
+        await createAuditLog({
+            action: 'DELETE', entity: 'SERVICE', entityId: service.serviceId,
+            performedBy: req.user.email, performedByRole: req.user.role,
+            oldData, newData: service.toObject(), ...extractAuditInfo(req),
+            details: `Service cancelled: ${reason || 'Deleted by admin'}`
+        });
+
+        res.json({ success: true, message: 'Service cancelled' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete service' });
+    }
+});
+
+// ===== ADMIN CREATE PARTNER =====
+
+// POST /api/admin/partners
+router.post('/partners', authenticate, authorize('SUPER_ADMIN'), async (req, res) => {
+    try {
+        const { generatePartnerId } = require('../../utils/idGenerator');
+        const {
+            applicantName, email, mobile, partnerType, gstNumber, panNumber,
+            billingAddress, contactPerson, skipOtp, sendWelcomeEmail, notes
+        } = req.body;
+
+        // Check uniqueness
+        const emailExists = await Partner.findOne({ email: email.toLowerCase() });
+        if (emailExists) return res.status(400).json({ error: 'Email already registered' });
+        const mobileExists = await Partner.findOne({ mobile });
+        if (mobileExists) return res.status(400).json({ error: 'Mobile already registered' });
+
+        const partnerId = await generatePartnerId(partnerType);
+
+        const partner = new Partner({
+            partnerId, partnerType, applicantName,
+            email: email.toLowerCase(), mobile,
+            mobileVerified: skipOtp || false,
+            gstNumber: gstNumber || 'N/A',
+            panNumber, billingAddress, contactPerson,
+            status: 'ACTIVE', passwordSet: false,
+            createdBy: req.user.email
+        });
+
+        await partner.save();
+
+        await createAuditLog({
+            action: 'CREATE', entity: 'PARTNER', entityId: partnerId,
+            performedBy: req.user.email, performedByRole: req.user.role,
+            newData: partner.toObject(), ...extractAuditInfo(req),
+            details: `Partner created by admin. Notes: ${notes || 'None'}`
+        });
+
+        // Generate & send welcome email if requested
+        if (sendWelcomeEmail) {
+            try {
+                const pdfBuffer = await generatePartnerAgreementPDF(partner);
+                await sendPartnerWelcomeEmail(partner, pdfBuffer);
+            } catch (emailError) {
+                console.error('Welcome email failed:', emailError);
+            }
+        }
+
+        res.status(201).json({ success: true, partnerId, partner });
+    } catch (error) {
+        console.error('Admin create partner error:', error);
+        res.status(500).json({ error: error.message || 'Failed to create partner' });
+    }
+});
+
+// ===== REPORTS & ANALYTICS =====
+
+// Helper: build date range query
+function buildDateQuery(dateFrom, dateTo, field = 'createdAt') {
+    const q = {};
+    if (dateFrom || dateTo) {
+        q[field] = {};
+        if (dateFrom) q[field].$gte = new Date(dateFrom);
+        if (dateTo) q[field].$lte = new Date(dateTo);
+    }
+    return q;
+}
+
+// GET /api/admin/reports/partner-performance
+router.get('/reports/partner-performance', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS', 'OPERATIONS'), async (req, res) => {
+    try {
+        const { dateFrom, dateTo, type, city } = req.query;
+        const partnerQuery = {};
+        if (type) partnerQuery.partnerType = type;
+        if (city) partnerQuery['billingAddress.city'] = new RegExp(city, 'i');
+
+        const partners = await Partner.find(partnerQuery).select('-password').lean();
+
+        const report = await Promise.all(partners.map(async (p) => {
+            const serviceQuery = { partnerId: p.partnerId, ...buildDateQuery(dateFrom, dateTo) };
+            const services = await Service.find(serviceQuery).lean();
+            const customers = await Customer.countDocuments({ partnerId: p.partnerId });
+
+            return {
+                partnerId: p.partnerId, applicantName: p.applicantName,
+                partnerType: p.partnerType, city: p.billingAddress?.city,
+                totalCustomers: customers, totalServices: services.length,
+                activeServices: services.filter(s => s.status === 'ACTIVE').length,
+                totalRevenue: services.reduce((s, sv) => s + (sv.serviceCost || 0), 0),
+                totalCommission: services.reduce((s, sv) => s + (sv.commissionAfterGST || 0), 0),
+                pendingCommission: services.filter(sv => !sv.commissionPaid).reduce((s, sv) => s + (sv.commissionAfterGST || 0), 0)
+            };
+        }));
+
+        report.sort((a, b) => b.totalRevenue - a.totalRevenue);
+        res.json({ report, total: report.length });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to generate partner performance report' });
+    }
+});
+
+// GET /api/admin/reports/customer-registration
+router.get('/reports/customer-registration', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS', 'OPERATIONS'), async (req, res) => {
+    try {
+        const { dateFrom, dateTo } = req.query;
+        const dateQuery = buildDateQuery(dateFrom, dateTo, 'registrationDate');
+        const customers = await Customer.find(dateQuery).select('-password').lean();
+
+        const byStatus = customers.reduce((acc, c) => { acc[c.status] = (acc[c.status] || 0) + 1; return acc; }, {});
+        const byMonth = customers.reduce((acc, c) => {
+            const key = new Date(c.registrationDate).toISOString().slice(0, 7);
+            acc[key] = (acc[key] || 0) + 1; return acc;
+        }, {});
+
+        res.json({ total: customers.length, byStatus, byMonth, customers: customers.slice(0, 50) });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to generate customer registration report' });
+    }
+});
+
+// GET /api/admin/reports/service-activation
+router.get('/reports/service-activation', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS', 'OPERATIONS'), async (req, res) => {
+    try {
+        const { dateFrom, dateTo } = req.query;
+        const dateQuery = buildDateQuery(dateFrom, dateTo, 'activatedAt');
+        const services = await Service.find({ status: 'ACTIVE', ...dateQuery }).lean();
+
+        const byType = services.reduce((acc, s) => { acc[s.serviceType] = (acc[s.serviceType] || 0) + 1; return acc; }, {});
+        const byMonth = services.reduce((acc, s) => {
+            const key = new Date(s.activatedAt || s.createdAt).toISOString().slice(0, 7);
+            acc[key] = (acc[key] || 0) + 1; return acc;
+        }, {});
+        const totalRevenue = services.reduce((s, sv) => s + (sv.serviceCost || 0), 0);
+
+        res.json({ total: services.length, byType, byMonth, totalRevenue });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to generate service activation report' });
+    }
+});
+
+// GET /api/admin/reports/commission
+router.get('/reports/commission', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS'), async (req, res) => {
+    try {
+        const { dateFrom, dateTo } = req.query;
+        const dateQuery = buildDateQuery(dateFrom, dateTo, 'activatedAt');
+        const services = await Service.find({ status: 'ACTIVE', ...dateQuery }).lean();
+
+        const totalCommission = services.reduce((s, sv) => s + (sv.commissionAfterGST || 0), 0);
+        const totalGST = services.reduce((s, sv) => s + (sv.gstAmount || 0), 0);
+        const paid = services.filter(s => s.commissionPaid);
+        const unpaid = services.filter(s => !s.commissionPaid);
+
+        res.json({
+            totalCommission, totalGST,
+            totalPaid: paid.reduce((s, sv) => s + (sv.commissionAfterGST || 0), 0),
+            totalUnpaid: unpaid.reduce((s, sv) => s + (sv.commissionAfterGST || 0), 0),
+            paidCount: paid.length, unpaidCount: unpaid.length
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to generate commission report' });
+    }
+});
+
+// GET /api/admin/reports/revenue
+router.get('/reports/revenue', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS'), async (req, res) => {
+    try {
+        const { dateFrom, dateTo } = req.query;
+        const dateQuery = buildDateQuery(dateFrom, dateTo, 'activatedAt');
+        const services = await Service.find({ status: 'ACTIVE', ...dateQuery }).lean();
+
+        const total = services.reduce((s, sv) => s + (sv.serviceCost || 0), 0);
+        const byMonth = {};
+        services.forEach(s => {
+            const key = new Date(s.activatedAt || s.createdAt).toISOString().slice(0, 7);
+            byMonth[key] = (byMonth[key] || 0) + (s.serviceCost || 0);
+        });
+
+        const byServiceType = {};
+        services.forEach(s => {
+            byServiceType[s.serviceType] = (byServiceType[s.serviceType] || 0) + (s.serviceCost || 0);
+        });
+
+        res.json({ totalRevenue: total, byMonth, byServiceType, serviceCount: services.length });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to generate revenue report' });
+    }
+});
+
+// GET /api/admin/reports/product-category
+router.get('/reports/product-category', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS', 'OPERATIONS'), async (req, res) => {
+    try {
+        const products = await Product.find().lean();
+        const byType = {};
+        const byBrand = {};
+        products.forEach(p => {
+            byType[p.productType] = (byType[p.productType] || 0) + 1;
+            byBrand[p.brand] = (byBrand[p.brand] || 0) + 1;
+        });
+        const avgValue = products.length > 0 ? products.reduce((s, p) => s + p.purchaseValue, 0) / products.length : 0;
+        res.json({ total: products.length, byType, byBrand, averageValue: Math.round(avgValue) });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to generate product category report' });
+    }
+});
+
+// GET /api/admin/reports/city-distribution
+router.get('/reports/city-distribution', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS', 'OPERATIONS'), async (req, res) => {
+    try {
+        const partners = await Partner.find().lean();
+        const customers = await Customer.find().lean();
+
+        const partnersByCity = {};
+        partners.forEach(p => {
+            const city = p.billingAddress?.city || 'Unknown';
+            partnersByCity[city] = (partnersByCity[city] || 0) + 1;
+        });
+
+        const customersByCity = {};
+        customers.forEach(c => {
+            const city = c.address?.city || 'Unknown';
+            customersByCity[city] = (customersByCity[city] || 0) + 1;
+        });
+
+        res.json({ partnersByCity, customersByCity });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to generate city distribution report' });
+    }
+});
+
+// GET /api/admin/reports/monthly-trend
+router.get('/reports/monthly-trend', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS', 'OPERATIONS'), async (req, res) => {
+    try {
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+        const [services, customers, partners] = await Promise.all([
+            Service.find({ createdAt: { $gte: sixMonthsAgo } }).lean(),
+            Customer.find({ registrationDate: { $gte: sixMonthsAgo } }).lean(),
+            Partner.find({ registrationDate: { $gte: sixMonthsAgo } }).lean()
+        ]);
+
+        const months = {};
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const key = d.toISOString().slice(0, 7);
+            months[key] = { services: 0, customers: 0, partners: 0, revenue: 0, commission: 0 };
+        }
+
+        services.forEach(s => {
+            const key = new Date(s.createdAt).toISOString().slice(0, 7);
+            if (months[key]) {
+                months[key].services++;
+                months[key].revenue += s.serviceCost || 0;
+                months[key].commission += s.commissionAfterGST || 0;
+            }
+        });
+
+        customers.forEach(c => {
+            const key = new Date(c.registrationDate).toISOString().slice(0, 7);
+            if (months[key]) months[key].customers++;
+        });
+
+        partners.forEach(p => {
+            const key = new Date(p.registrationDate).toISOString().slice(0, 7);
+            if (months[key]) months[key].partners++;
+        });
+
+        res.json({ trend: months });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to generate monthly trend report' });
+    }
+});
+
+// POST /api/admin/reports/export
+router.post('/reports/export', authenticate, authorize('SUPER_ADMIN', 'ACCOUNTS'), async (req, res) => {
+    try {
+        const { reportType, format, filters } = req.body;
+
+        await createAuditLog({
+            action: 'CREATE', entity: 'ADMIN', entityId: `EXPORT-${reportType}`,
+            performedBy: req.user.email, performedByRole: req.user.role,
+            ...extractAuditInfo(req),
+            details: `Report exported: ${reportType} as ${format}`
+        });
+
+        // For now, return JSON data. PDF/Excel export can be added with specific libraries.
+        res.json({
+            success: true,
+            message: `Report ${reportType} exported as ${format}`,
+            exportedAt: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to export report' });
+    }
+});
+
 module.exports = router;

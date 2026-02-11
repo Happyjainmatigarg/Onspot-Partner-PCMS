@@ -5,11 +5,15 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
+// Security middleware
+const { xssSanitizer, requestLogger, securityHeaders, mongoSanitize } = require('./middleware/security');
+
 // Route imports
 const otpRoutes = require('./routes/otp');
 const partnerRoutes = require('./routes/partners');
 const customerRoutes = require('./routes/customers');
 const adminRoutes = require('./routes/admin');
+const erpRoutes = require('./routes/admin/erp');
 
 // Model imports for seeding
 const SystemSetting = require('./models/SystemSetting');
@@ -23,7 +27,21 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" }
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://checkout.razorpay.com"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            imgSrc: ["'self'", "data:", "https://images.unsplash.com", "https://*.onspot.one"],
+            connectSrc: ["'self'", "https://*.onspot.one", "https://api.razorpay.com"],
+            frameSrc: ["'self'", "https://api.razorpay.com"],
+            objectSrc: ["'none'"],
+            upgradeInsecureRequests: [],
+        },
+    },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
 }));
 
 app.use(cors({
@@ -42,6 +60,12 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Security middleware stack
+app.use(securityHeaders);
+app.use(requestLogger);
+app.use(xssSanitizer);
+app.use(mongoSanitize);
 
 // Rate limiting
 const limiter = rateLimit({
@@ -75,6 +99,7 @@ app.use('/api/otp', otpRoutes);
 app.use('/api/partners', partnerRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/erp', erpRoutes);
 app.use('/api/push', require('./routes/push'));
 
 // Root route
@@ -93,11 +118,13 @@ app.get('/api', (req, res) => {
     });
 });
 
-// Error handling middleware
+// Error handling middleware — never leak stack traces in production
 app.use((err, req, res, next) => {
     console.error('Error:', err);
+    const isProduction = process.env.NODE_ENV === 'production';
     res.status(err.status || 500).json({
-        error: err.message || 'Internal server error'
+        error: isProduction ? 'Internal server error' : (err.message || 'Internal server error'),
+        ...(isProduction ? {} : { stack: err.stack })
     });
 });
 
