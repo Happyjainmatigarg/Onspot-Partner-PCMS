@@ -150,8 +150,8 @@ export default function CustomerDetailPage({ params }) {
                     </div>
                 </div>
                 <span className={`badge ${customer.status === 'PENDING' ? 'badge-warning' :
-                        customer.status === 'APPROVED' || customer.status === 'ACTIVE' ? 'badge-success' :
-                            'badge-danger'
+                    customer.status === 'APPROVED' || customer.status === 'ACTIVE' ? 'badge-success' :
+                        'badge-danger'
                     }`}>
                     {customer.status}
                 </span>
@@ -219,32 +219,39 @@ export default function CustomerDetailPage({ params }) {
                         <Smartphone className="w-5 h-5 text-gray-400" />
                         Device Details
                     </h2>
-                    <dl className="space-y-3">
-                        <div className="flex justify-between">
-                            <dt className="text-gray-500">Type</dt>
-                            <dd><span className="badge badge-gray">{product?.productType}</span></dd>
+                    {product ? (
+                        <dl className="space-y-3">
+                            <div className="flex justify-between">
+                                <dt className="text-gray-500">Type</dt>
+                                <dd><span className="badge badge-gray">{product.productType}</span></dd>
+                            </div>
+                            <div className="flex justify-between">
+                                <dt className="text-gray-500">Brand</dt>
+                                <dd className="font-medium">{product.brand}</dd>
+                            </div>
+                            <div className="flex justify-between">
+                                <dt className="text-gray-500">Model</dt>
+                                <dd className="font-medium">{product.model}</dd>
+                            </div>
+                            <div className="flex justify-between">
+                                <dt className="text-gray-500">Serial/IMEI</dt>
+                                <dd className="font-mono text-sm">{product.serialNumber}</dd>
+                            </div>
+                            <div className="flex justify-between">
+                                <dt className="text-gray-500">Purchase Value</dt>
+                                <dd className="font-bold text-green-600">₹{(product.purchaseValue || 0).toLocaleString('en-IN')}</dd>
+                            </div>
+                            <div className="flex justify-between">
+                                <dt className="text-gray-500">Purchase Date</dt>
+                                <dd>{product.purchaseDate ? new Date(product.purchaseDate).toLocaleDateString('en-IN') : 'N/A'}</dd>
+                            </div>
+                        </dl>
+                    ) : (
+                        <div className="text-center py-8 text-gray-500">
+                            <p>No device information available.</p>
+                            <p className="text-xs mt-1 text-red-500">Data integrity issue.</p>
                         </div>
-                        <div className="flex justify-between">
-                            <dt className="text-gray-500">Brand</dt>
-                            <dd className="font-medium">{product?.brand}</dd>
-                        </div>
-                        <div className="flex justify-between">
-                            <dt className="text-gray-500">Model</dt>
-                            <dd className="font-medium">{product?.model}</dd>
-                        </div>
-                        <div className="flex justify-between">
-                            <dt className="text-gray-500">Serial/IMEI</dt>
-                            <dd className="font-mono text-sm">{product?.serialNumber}</dd>
-                        </div>
-                        <div className="flex justify-between">
-                            <dt className="text-gray-500">Purchase Value</dt>
-                            <dd className="font-bold text-green-600">₹{(product?.purchaseValue || 0).toLocaleString('en-IN')}</dd>
-                        </div>
-                        <div className="flex justify-between">
-                            <dt className="text-gray-500">Purchase Date</dt>
-                            <dd>{new Date(product?.purchaseDate).toLocaleDateString('en-IN')}</dd>
-                        </div>
-                    </dl>
+                    )}
                 </div>
 
                 {/* Service & Commission */}
@@ -253,39 +260,46 @@ export default function CustomerDetailPage({ params }) {
                         <IndianRupee className="w-5 h-5 text-gray-400" />
                         Service & Commission
                     </h2>
-                    <dl className="space-y-3">
-                        <div className="flex justify-between">
-                            <dt className="text-gray-500">Service Type</dt>
-                            <dd><span className="badge badge-info text-lg">{service?.serviceType}</span></dd>
-                        </div>
-                        <div className="flex justify-between">
-                            <dt className="text-gray-500">Service Cost</dt>
-                            <dd className="font-bold text-xl">₹{(service?.serviceCost || 0).toLocaleString('en-IN')}</dd>
-                        </div>
+                    {service ? (
+                        <dl className="space-y-3">
+                            <div className="flex justify-between">
+                                <dt className="text-gray-500">Service Type</dt>
+                                <dd><span className="badge badge-info text-lg">{service.serviceType}</span></dd>
+                            </div>
+                            <div className="flex justify-between">
+                                <dt className="text-gray-500">Service Cost</dt>
+                                <dd className="font-bold text-xl">₹{(service.serviceCost || 0).toLocaleString('en-IN')}</dd>
+                            </div>
 
-                        {commissionPreview && (
-                            <>
-                                <hr />
-                                <p className="text-sm font-medium text-gray-700">Commission Preview:</p>
-                                <div className="flex justify-between text-sm">
-                                    <dt className="text-gray-500">Rate ({partner?.partnerType})</dt>
-                                    <dd>{commissionPreview.commissionPercentage}%</dd>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                    <dt className="text-gray-500">Before GST</dt>
-                                    <dd>₹{commissionPreview.commissionBeforeGST?.toLocaleString('en-IN')}</dd>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                    <dt className="text-gray-500">GST (18%)</dt>
-                                    <dd className="text-red-500">-₹{commissionPreview.gstAmount?.toLocaleString('en-IN')}</dd>
-                                </div>
-                                <div className="flex justify-between font-bold text-green-600">
-                                    <dt>After GST</dt>
-                                    <dd>₹{commissionPreview.commissionAfterGST?.toLocaleString('en-IN')}</dd>
-                                </div>
-                            </>
-                        )}
-                    </dl>
+                            {commissionPreview && (
+                                <>
+                                    <hr />
+                                    <p className="text-sm font-medium text-gray-700">Commission Preview:</p>
+                                    <div className="flex justify-between text-sm">
+                                        <dt className="text-gray-500">Rate ({partner?.partnerType})</dt>
+                                        <dd>{commissionPreview.commissionPercentage}%</dd>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <dt className="text-gray-500">Before GST</dt>
+                                        <dd>₹{commissionPreview.commissionBeforeGST?.toLocaleString('en-IN')}</dd>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <dt className="text-gray-500">GST (18%)</dt>
+                                        <dd className="text-red-500">-₹{commissionPreview.gstAmount?.toLocaleString('en-IN')}</dd>
+                                    </div>
+                                    <div className="flex justify-between font-bold text-green-600">
+                                        <dt>After GST</dt>
+                                        <dd>₹{commissionPreview.commissionAfterGST?.toLocaleString('en-IN')}</dd>
+                                    </div>
+                                </>
+                            )}
+                        </dl>
+                    ) : (
+                        <div className="text-center py-8 text-gray-500">
+                            <p>No service information available.</p>
+                            <p className="text-xs mt-1 text-red-500">Data integrity issue.</p>
+                        </div>
+                    )}
                 </div>
             </div>
 
